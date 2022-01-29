@@ -603,7 +603,7 @@ private:
         viewport.x = 0.0f;
         viewport.y = 0.0f;
         viewport.width = swapChainExtent.width;
-        viewport.height = swapChainExtent.width;
+        viewport.height = swapChainExtent.height;
         viewport.minDepth = 0.0f;
         viewport.maxDepth = 1.0f;
 
