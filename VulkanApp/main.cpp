@@ -163,11 +163,6 @@ private:
         std::vector<VkExtensionProperties> extensions(extensionCount);
         vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data());
         
-        std::cout << "available extensions:\n";
-        for (const auto& extension : extensions) 
-        {
-            std::cout << '\t' << extension.extensionName << " " << extension.specVersion << '\n';
-        }
         // extensions check
 
         uint32_t glfwExtensionCount = 0;
