@@ -116,7 +116,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\VulkanSDK\1.2.198.1\Include;C:\Program Files\Microsoft Visual Studio\Libraries\glfw-3.3.6.bin.WIN64\include;C:\Program Files\Microsoft Visual Studio\Libraries\glm;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\VulkanSDK\1.2.198.1\Include;C:\Program Files\Microsoft Visual Studio\Libraries\glfw-3.3.6.bin.WIN64\include;D:\Libraries\stb;C:\Program Files\Microsoft Visual Studio\Libraries\glm;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
@@ -134,7 +134,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\VulkanSDK\1.2.198.1\Include;C:\Program Files\Microsoft Visual Studio\Libraries\glfw-3.3.6.bin.WIN64\include;C:\Program Files\Microsoft Visual Studio\Libraries\glm;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\VulkanSDK\1.2.198.1\Include;C:\Program Files\Microsoft Visual Studio\Libraries\glfw-3.3.6.bin.WIN64\include;D:\Libraries\stb;C:\Program Files\Microsoft Visual Studio\Libraries\glm;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
