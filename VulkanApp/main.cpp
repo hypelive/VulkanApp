@@ -29,6 +29,8 @@
 #include <chrono>
 #include <unordered_map>
 
+#include "Camera.h"
+
 struct Vertex 
 {
     glm::vec3 pos;
@@ -91,13 +93,18 @@ struct UniformBufferObject
     glm::mat4 model;
     glm::mat4 view;
     glm::mat4 proj;
+
+    glm::mat4 mvp;
 };
 
-class HelloTriangleApplication
+class VulkanApplication
 {
 public:
     const uint32_t WIDTH = 800;
     const uint32_t HEIGHT = 600;
+
+    const float CAMERA_ROTATION_SPEED_X = 0.005;
+    const float CAMERA_ROTATION_SPEED_Y = 0.005;
 
     const std::string MODEL_PATH = "models/room.obj";
     const std::string TEXTURE_PATH = "textures/room.png";
@@ -115,6 +122,8 @@ public:
     const int MAX_FRAMES_IN_FLIGHT = 2;
 
 private:
+    Camera camera;
+
     GLFWwindow* window;
     VkInstance instance;
     VkSurfaceKHR surface;
@@ -177,7 +186,13 @@ private:
     VkDeviceMemory colorImageMemory;
     VkImageView colorImageView;
 
+    bool isCameraRotationMode;
+    double lastCursorPosX;
+    double lastCursorPosY;
+
 public:
+    VulkanApplication() : camera(glm::vec3(0.0f, 0.0f, 0.0f)) { }
+
     void run()
     {
         initWindow();
@@ -237,6 +252,69 @@ private:
         return true;
     }
 
+    // TODO
+    static void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
+    {
+        auto app = reinterpret_cast<VulkanApplication*>(glfwGetWindowUserPointer(window));
+
+        if (action == GLFW_REPEAT || action == GLFW_PRESS)
+        {
+            switch (key)
+            {
+            case GLFW_KEY_W:
+                app->camera.translate(glm::vec3(0, 0, 0.1));
+                break;
+            case GLFW_KEY_A:
+                app->camera.translate(glm::vec3(-0.1, 0, 0));
+                break;
+            case GLFW_KEY_S:
+                app->camera.translate(glm::vec3(0, 0, -0.1));
+                break;
+            case GLFW_KEY_D:
+                app->camera.translate(glm::vec3(0.1, 0, 0));
+                break;
+            }
+        }
+    }
+
+    static void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
+    {
+        auto app = reinterpret_cast<VulkanApplication*>(glfwGetWindowUserPointer(window));
+
+        if (action == GLFW_PRESS)
+        {
+            if (button == GLFW_MOUSE_BUTTON_RIGHT)
+            {
+                app->isCameraRotationMode = true;
+                glfwGetCursorPos(window, &app->lastCursorPosX, &app->lastCursorPosY);
+            }
+        }
+        else if (action == GLFW_RELEASE)
+        {
+            if (button == GLFW_MOUSE_BUTTON_RIGHT)
+            {
+                app->isCameraRotationMode = false;
+            }
+        }
+    }
+
+    static void cursorPositionCallback(GLFWwindow* window, double xpos, double ypos)
+    {
+        auto app = reinterpret_cast<VulkanApplication*>(glfwGetWindowUserPointer(window));
+
+        if (!app->isCameraRotationMode)
+        {
+            return;
+        }
+
+        float offsetX = xpos - app->lastCursorPosX;
+        float offsetY = ypos - app->lastCursorPosY;
+        app->camera.rotate(glm::vec2(offsetX * app->CAMERA_ROTATION_SPEED_X, offsetY * app->CAMERA_ROTATION_SPEED_Y));
+
+        app->lastCursorPosX = xpos;
+        app->lastCursorPosY = ypos;
+    }
+
     void initWindow()
     {
         if (enableValidationLayers && !checkValdationLayersSupport())
@@ -251,6 +329,10 @@ private:
         window = glfwCreateWindow(WIDTH, HEIGHT, "VulkanApp", nullptr, nullptr);
         glfwSetWindowUserPointer(window, this);
         glfwSetFramebufferSizeCallback(window, onFramebufferResize);
+
+        glfwSetKeyCallback(window, keyCallback);
+        glfwSetMouseButtonCallback(window, mouseButtonCallback);
+        glfwSetCursorPosCallback(window, cursorPositionCallback);
     }
 
     void createInstance()
@@ -1652,12 +1734,12 @@ private:
         float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
         UniformBufferObject ubo{};
-        ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(45.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        ubo.view = glm::lookAt(glm::vec3(1.25f, 1.25f, 1.25f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        ubo.proj = glm::perspective(glm::radians(75.0f), (float)swapChainExtent.width / swapChainExtent.height, 0.1f, 10.0f);
-
-        // flip Y axis
+        ubo.model = glm::mat4(1.0f);
+        ubo.view = camera.getViewMatrix();
+        ubo.proj = glm::perspective(glm::radians(40.0f), (float)swapChainExtent.width / swapChainExtent.height, 0.1f, 10.0f);
         ubo.proj[1][1] *= -1;
+
+        ubo.mvp = ubo.proj * ubo.view * ubo.model;
 
         void* data;
         vkMapMemory(device, uniformBuffersMemory[currentImage], 0, sizeof(ubo), 0, &data);
@@ -1862,14 +1944,14 @@ private:
 
     static void onFramebufferResize(GLFWwindow* window, int width, int height) 
     {
-        auto app = reinterpret_cast<HelloTriangleApplication*>(glfwGetWindowUserPointer(window));
+        auto app = reinterpret_cast<VulkanApplication*>(glfwGetWindowUserPointer(window));
         app->framebufferResized = true;
     }
 };
 
 int main() 
 {
-    HelloTriangleApplication app;
+    VulkanApplication app;
 
     try 
     {
