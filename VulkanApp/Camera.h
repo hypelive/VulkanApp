@@ -13,15 +13,13 @@
 // TODO transform component
 class Camera
 {
-	const glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
-
-public:
 	glm::vec3 position;
 
-	//glm::quat rotation;
-	//glm::vec3 direction;
-	glm::vec2 rotation;
+	glm::vec3 forward;
+	glm::vec3 up;
+	// store or compute right?
 
+public:
 	Camera(const glm::vec3&& position);
 
 	void translate(glm::vec3 offset);

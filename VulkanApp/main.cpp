@@ -103,11 +103,14 @@ public:
     const uint32_t WIDTH = 800;
     const uint32_t HEIGHT = 600;
 
-    const float CAMERA_ROTATION_SPEED_X = 0.005;
-    const float CAMERA_ROTATION_SPEED_Y = 0.005;
+    const float CAMERA_ROTATION_SPEED_X = 0.005f;
+    const float CAMERA_ROTATION_SPEED_Y = 0.005f;
+    const float CAMERA_MOVEMENT_SPEED_RIGHT = 0.08f;
+    const float CAMERA_MOVEMENT_SPEED_UP = 0.08f;
+    const float CAMERA_MOVEMENT_SPEED_FORWARD = 0.08f;
 
-    const std::string MODEL_PATH = "models/room.obj";
-    const std::string TEXTURE_PATH = "textures/room.png";
+    const std::string MODEL_PATH = "models/test.obj";
+    const std::string TEXTURE_PATH = "textures/test.png";
 
     const std::vector<const char*> validationLayers = {
         "VK_LAYER_KHRONOS_validation"
@@ -191,7 +194,7 @@ private:
     double lastCursorPosY;
 
 public:
-    VulkanApplication() : camera(glm::vec3(0.0f, 0.0f, 0.0f)) { }
+    VulkanApplication() : camera(glm::vec3(0.0f, 0.0f, -5.0f)) { }
 
     void run()
     {
@@ -252,7 +255,6 @@ private:
         return true;
     }
 
-    // TODO
     static void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
     {
         auto app = reinterpret_cast<VulkanApplication*>(glfwGetWindowUserPointer(window));
@@ -262,16 +264,22 @@ private:
             switch (key)
             {
             case GLFW_KEY_W:
-                app->camera.translate(glm::vec3(0, 0, 0.1));
+                app->camera.translate(glm::vec3(0.0f, 0.0f, app->CAMERA_MOVEMENT_SPEED_FORWARD));
                 break;
             case GLFW_KEY_A:
-                app->camera.translate(glm::vec3(-0.1, 0, 0));
+                app->camera.translate(glm::vec3(-app->CAMERA_MOVEMENT_SPEED_RIGHT, 0.0f, 0.0f));
                 break;
             case GLFW_KEY_S:
-                app->camera.translate(glm::vec3(0, 0, -0.1));
+                app->camera.translate(glm::vec3(0.0f, 0.0f, -app->CAMERA_MOVEMENT_SPEED_FORWARD));
                 break;
             case GLFW_KEY_D:
-                app->camera.translate(glm::vec3(0.1, 0, 0));
+                app->camera.translate(glm::vec3(app->CAMERA_MOVEMENT_SPEED_RIGHT, 0.0f, 0.0f));
+                break;
+            case GLFW_KEY_SPACE:
+                app->camera.translate(glm::vec3(0.0f, app->CAMERA_MOVEMENT_SPEED_UP, 0.0f));
+                break;
+            case GLFW_KEY_LEFT_CONTROL:
+                app->camera.translate(glm::vec3(0.0f, -app->CAMERA_MOVEMENT_SPEED_UP, 0.0f));
                 break;
             }
         }
@@ -281,6 +289,7 @@ private:
     {
         auto app = reinterpret_cast<VulkanApplication*>(glfwGetWindowUserPointer(window));
 
+        // TODO hide cursor
         if (action == GLFW_PRESS)
         {
             if (button == GLFW_MOUSE_BUTTON_RIGHT)
@@ -307,9 +316,9 @@ private:
             return;
         }
 
-        float offsetX = xpos - app->lastCursorPosX;
-        float offsetY = ypos - app->lastCursorPosY;
-        app->camera.rotate(glm::vec2(offsetX * app->CAMERA_ROTATION_SPEED_X, offsetY * app->CAMERA_ROTATION_SPEED_Y));
+        float offsetX = static_cast<float>(xpos - app->lastCursorPosX);
+        float offsetY = static_cast<float>(ypos - app->lastCursorPosY);
+        app->camera.rotate(glm::vec2(-offsetX * app->CAMERA_ROTATION_SPEED_X, -offsetY * app->CAMERA_ROTATION_SPEED_Y));
 
         app->lastCursorPosX = xpos;
         app->lastCursorPosY = ypos;
