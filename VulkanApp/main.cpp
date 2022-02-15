@@ -36,6 +36,7 @@ struct Vertex
     glm::vec3 pos;
     glm::vec3 color;
     glm::vec2 texCoord;
+    glm::vec3 normal;
 
     static VkVertexInputBindingDescription getBindingDescription()
     {
@@ -47,9 +48,9 @@ struct Vertex
         return bindingDescription;
     }
 
-    static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions()
+    static std::array<VkVertexInputAttributeDescription, 4> getAttributeDescriptions()
     {
-        std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions{};
+        std::array<VkVertexInputAttributeDescription, 4> attributeDescriptions{};
 
         attributeDescriptions[0].binding = 0;
         attributeDescriptions[0].location = 0;
@@ -65,6 +66,11 @@ struct Vertex
         attributeDescriptions[2].location = 2;
         attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
         attributeDescriptions[2].offset = offsetof(Vertex, texCoord);
+
+        attributeDescriptions[3].binding = 0;
+        attributeDescriptions[3].location = 3;
+        attributeDescriptions[3].format = VK_FORMAT_R32G32B32_SFLOAT;
+        attributeDescriptions[3].offset = offsetof(Vertex, normal);
 
         return attributeDescriptions;
     }
@@ -95,6 +101,8 @@ struct UniformBufferObject
     glm::mat4 proj;
 
     glm::mat4 mvp;
+
+    glm::vec3 directionalLightDirection;
 };
 
 class VulkanApplication
@@ -1368,6 +1376,12 @@ private:
                     1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
                 };
 
+                vertex.normal = {
+                    attrib.normals[3 * index.normal_index + 0],
+                    attrib.normals[3 * index.normal_index + 1],
+                    attrib.normals[3 * index.normal_index + 2]
+                };
+
                 vertex.color = { 1.0f, 1.0f, 1.0f };
 
                 if (uniqueVertices.count(vertex) == 0) 
@@ -1749,6 +1763,8 @@ private:
         ubo.proj[1][1] *= -1;
 
         ubo.mvp = ubo.proj * ubo.view * ubo.model;
+
+        ubo.directionalLightDirection = glm::vec3(0.6667f, 0.3333f, 0.6667f);
 
         void* data;
         vkMapMemory(device, uniformBuffersMemory[currentImage], 0, sizeof(ubo), 0, &data);
