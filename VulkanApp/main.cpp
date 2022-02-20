@@ -30,6 +30,7 @@
 #include <unordered_map>
 
 #include "Camera.h"
+#include "LightSource.h"
 
 struct Vertex 
 {
@@ -107,6 +108,17 @@ struct UniformBufferObject
     glm::mat4 mvp;
 
     glm::vec3 directionalLightDirection;
+};
+
+struct LightSources
+{
+    AmbientLight ambient;
+
+    int directionalCount;
+    std::vector<DirectionalLight> directionals;
+
+    int pointCount;
+    std::vector<PointLight> points;
 };
 
 class VulkanApplication
@@ -847,8 +859,8 @@ private:
 
     void createGraphicsPipeline()
     {
-        auto vertShaderCode = readFile("shaders/compiled/vert.spv");
-        auto fragShaderCode = readFile("shaders/compiled/frag.spv");
+        auto vertShaderCode = readFile("shaders/compiled/lambertian.vert.spv");
+        auto fragShaderCode = readFile("shaders/compiled/lambertian.frag.spv");
 
         VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
         VkShaderModule fragShaderModule = createShaderModule(fragShaderCode);
