@@ -77,7 +77,10 @@ struct Vertex
 
     bool operator ==(const Vertex& other) const
     {
-        return pos == other.pos && color == other.color && texCoord == other.texCoord;
+        return pos == other.pos &&
+            color == other.color &&
+            texCoord == other.texCoord &&
+            normal == other.normal;
     }
 };
 
@@ -89,7 +92,8 @@ namespace std
         {
             return ((hash<glm::vec3>()(vertex.pos) ^
                 (hash<glm::vec3>()(vertex.color) << 1)) >> 1) ^
-                (hash<glm::vec2>()(vertex.texCoord) << 1);
+                (hash<glm::vec2>()(vertex.texCoord) << 1) ^
+                (hash<glm::vec3>()(vertex.normal) >> 8);
         }
     };
 }
@@ -113,12 +117,12 @@ public:
 
     const float CAMERA_ROTATION_SPEED_X = 0.005f;
     const float CAMERA_ROTATION_SPEED_Y = 0.005f;
-    const float CAMERA_MOVEMENT_SPEED_RIGHT = 0.08f;
-    const float CAMERA_MOVEMENT_SPEED_UP = 0.08f;
-    const float CAMERA_MOVEMENT_SPEED_FORWARD = 0.08f;
+    const float CAMERA_MOVEMENT_SPEED_RIGHT = 0.1f;
+    const float CAMERA_MOVEMENT_SPEED_UP = 0.1f;
+    const float CAMERA_MOVEMENT_SPEED_FORWARD = 0.1f;
 
-    const std::string MODEL_PATH = "models/test.obj";
-    const std::string TEXTURE_PATH = "textures/test.png";
+    const std::string MODEL_PATH = "models/sphere.obj";
+    const std::string TEXTURE_PATH = "textures/default.png";
 
     const std::vector<const char*> validationLayers = {
         "VK_LAYER_KHRONOS_validation"
@@ -803,7 +807,7 @@ private:
         uboLayoutBinding.binding = 0;
         uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         uboLayoutBinding.descriptorCount = 1;
-        uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
         uboLayoutBinding.pImmutableSamplers = nullptr;
 
         VkDescriptorSetLayoutBinding samplerLayoutBinding{};
@@ -1371,10 +1375,17 @@ private:
                     attrib.vertices[3 * index.vertex_index + 2]
                 };
 
-                vertex.texCoord = {
-                    attrib.texcoords[2 * index.texcoord_index + 0],
-                    1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
-                };
+                if (attrib.texcoords.size() == 0)
+                {
+                    vertex.texCoord = { 0.0f, 0.0f };
+                }
+                else
+                {
+                    vertex.texCoord = {
+                        attrib.texcoords[2 * index.texcoord_index + 0],
+                        1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
+                    };
+                }
 
                 vertex.normal = {
                     attrib.normals[3 * index.normal_index + 0],
@@ -1759,7 +1770,8 @@ private:
         UniformBufferObject ubo{};
         ubo.model = glm::mat4(1.0f);
         ubo.view = camera.getViewMatrix();
-        ubo.proj = glm::perspective(glm::radians(40.0f), (float)swapChainExtent.width / swapChainExtent.height, 0.1f, 10.0f);
+        ubo.proj = glm::perspective(glm::radians(40.0f), (float)swapChainExtent.width / swapChainExtent.height, 0.1f, 1000.0f);
+
         ubo.proj[1][1] *= -1;
 
         ubo.mvp = ubo.proj * ubo.view * ubo.model;
