@@ -105,20 +105,43 @@ struct UniformBufferObject
     glm::mat4 view;
     glm::mat4 proj;
 
+    glm::mat4 vp;
     glm::mat4 mvp;
-
-    glm::vec3 directionalLightDirection;
 };
 
 struct LightSources
 {
+    static const int MAX_DIRECTIONAL_LIGHTS = 4;
+    static const int MAX_POINT_LIGHTS = 8;
+
     AmbientLight ambient;
 
+    DirectionalLight directional[MAX_DIRECTIONAL_LIGHTS] { };
     int directionalCount;
-    std::vector<DirectionalLight> directionals;
 
+    PointLight point[MAX_POINT_LIGHTS] { };
     int pointCount;
-    std::vector<PointLight> points;
+
+    LightSources() :
+        ambient(glm::vec3(0.04f, 0.04f, 0.04f)), directionalCount(1), pointCount(2) 
+    {
+        directional[0].color = glm::vec3(0.7f, 0.7f, 0.0f);
+        directional[0].direction = glm::vec3(-0.6667f, 0.3333f, -0.6667f);
+
+        //directional[1].color = glm::vec3(0.7f, 0.0f, 0.7f);
+        //directional[1].direction = glm::vec3(0.6667f, 0.3333f, 0.6667f);
+
+        point[0].color = glm::vec3(70.0f, 0.0f, 70.0f);
+        point[0].position = glm::vec3(0.0f, 0.0f, -4.0f);
+
+        point[1].color = glm::vec3(70.0f, 0.0f, 0.0f);
+        point[1].position = glm::vec3(0.0f, 0.0f, 4.0f);
+    }
+
+    static size_t bufferSize()
+    {
+        return sizeof(LightSources);
+    }
 };
 
 class VulkanApplication
@@ -197,6 +220,9 @@ private:
 
     std::vector<VkBuffer> uniformBuffers;
     std::vector<VkDeviceMemory> uniformBuffersMemory;
+
+    std::vector<VkBuffer> lightBuffers;
+    std::vector<VkDeviceMemory> lightBuffersMemory;
 
     VkImage textureImage;
     VkDeviceMemory textureImageMemory;
@@ -819,7 +845,7 @@ private:
         uboLayoutBinding.binding = 0;
         uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         uboLayoutBinding.descriptorCount = 1;
-        uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+        uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
         uboLayoutBinding.pImmutableSamplers = nullptr;
 
         VkDescriptorSetLayoutBinding samplerLayoutBinding{};
@@ -829,7 +855,14 @@ private:
         samplerLayoutBinding.pImmutableSamplers = nullptr;
         samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-        std::array<VkDescriptorSetLayoutBinding, 2> bindings = { uboLayoutBinding, samplerLayoutBinding };
+        VkDescriptorSetLayoutBinding lightsLayoutBinding{};
+        lightsLayoutBinding.binding = 2;
+        lightsLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        lightsLayoutBinding.descriptorCount = 1;
+        lightsLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        lightsLayoutBinding.pImmutableSamplers = nullptr;
+
+        std::array<VkDescriptorSetLayoutBinding, 3> bindings = { uboLayoutBinding, samplerLayoutBinding, lightsLayoutBinding };
         VkDescriptorSetLayoutCreateInfo layoutInfo{};
         layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
         layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
@@ -1583,15 +1616,30 @@ private:
                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                 uniformBuffers[i], uniformBuffersMemory[i]);
         }
+
+        bufferSize = LightSources::bufferSize();
+
+        lightBuffers.resize(bufferCount);
+        lightBuffersMemory.resize(bufferCount);
+
+        for (size_t i = 0; i < bufferCount; i++)
+        {
+            createBuffer(bufferSize,
+                VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                lightBuffers[i], lightBuffersMemory[i]);
+        }
     }
 
     void createDescriptorPool()
     {
-        std::array<VkDescriptorPoolSize, 2> poolSizes{};
+        std::array<VkDescriptorPoolSize, 3> poolSizes{};
         poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         poolSizes[0].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
         poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         poolSizes[1].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
+        poolSizes[2].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        poolSizes[2].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
 
         VkDescriptorPoolCreateInfo poolInfo{};
         poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -1632,7 +1680,12 @@ private:
             imageInfo.imageView = textureImageView;
             imageInfo.sampler = textureSampler;
 
-            std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
+            VkDescriptorBufferInfo lightBufferInfo{};
+            lightBufferInfo.buffer = lightBuffers[i];
+            lightBufferInfo.offset = 0;
+            lightBufferInfo.range = LightSources::bufferSize();
+
+            std::array<VkWriteDescriptorSet, 3> descriptorWrites{};
 
             descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             descriptorWrites[0].dstSet = descriptorSets[i];
@@ -1649,6 +1702,14 @@ private:
             descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
             descriptorWrites[1].descriptorCount = 1;
             descriptorWrites[1].pImageInfo = &imageInfo;
+
+            descriptorWrites[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptorWrites[2].dstSet = descriptorSets[i];
+            descriptorWrites[2].dstBinding = 2;
+            descriptorWrites[2].dstArrayElement = 0;
+            descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            descriptorWrites[2].descriptorCount = 1;
+            descriptorWrites[2].pBufferInfo = &lightBufferInfo;
 
             vkUpdateDescriptorSets(
                 device,
@@ -1786,14 +1847,24 @@ private:
 
         ubo.proj[1][1] *= -1;
 
-        ubo.mvp = ubo.proj * ubo.view * ubo.model;
-
-        ubo.directionalLightDirection = glm::vec3(0.6667f, 0.3333f, 0.6667f);
+        ubo.vp = ubo.proj * ubo.view;
+        ubo.mvp = ubo.vp * ubo.model;
 
         void* data;
         vkMapMemory(device, uniformBuffersMemory[currentImage], 0, sizeof(ubo), 0, &data);
         memcpy(data, &ubo, sizeof(ubo));
         vkUnmapMemory(device, uniformBuffersMemory[currentImage]);
+    }
+
+    void updateLightBuffer(uint32_t currentImage)
+    {
+        // TODO object in application
+        LightSources sources{};
+
+        void* data;
+        vkMapMemory(device, lightBuffersMemory[currentImage], 0, LightSources::bufferSize(), 0, &data);
+        memcpy(data, &sources, LightSources::bufferSize());
+        vkUnmapMemory(device, lightBuffersMemory[currentImage]);
     }
 
     void drawFrame()
@@ -1820,6 +1891,7 @@ private:
         imagesInFlight[imageIndex] = inFlightFences[currentFrame];
 
         updateUniformBuffer(imageIndex);
+        updateLightBuffer(imageIndex);
 
         VkSubmitInfo submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -1912,6 +1984,9 @@ private:
         {
             vkDestroyBuffer(device, uniformBuffers[i], nullptr);
             vkFreeMemory(device, uniformBuffersMemory[i], nullptr);
+
+            vkDestroyBuffer(device, lightBuffers[i], nullptr);
+            vkFreeMemory(device, lightBuffersMemory[i], nullptr);
         }
 
         vkDestroyDescriptorPool(device, descriptorPool, nullptr);
