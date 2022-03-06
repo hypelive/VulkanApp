@@ -26,5 +26,6 @@ public:
 	void rotate(glm::vec2 angles);
 
 	glm::mat4 getViewMatrix();
+	glm::vec3 getPosition();
 };
 

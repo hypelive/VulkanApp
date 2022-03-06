@@ -8,6 +8,8 @@ layout(binding = 0) uniform UniformBufferObject
 
     mat4 vp;
     mat4 mvp;
+
+    vec4 cameraPosition;
 } ubo;
 
 layout(location = 0) in vec3 inPosition;
@@ -18,6 +20,7 @@ layout(location = 3) in vec3 inNormal;
 layout(location = 0) out vec2 fragTexCoord;
 layout(location = 1) out vec3 fragNormal;
 layout(location = 2) out vec3 fragPosition;
+layout(location = 3) out vec3 fragView;
 
 void main() 
 {
@@ -26,5 +29,8 @@ void main()
     gl_Position = ubo.vp * worldPosition;
 
     fragTexCoord = inTexCoord;
-    fragNormal = inNormal;
+
+    fragNormal = (ubo.model * vec4(inNormal, 0.0)).xyz;
+
+    fragView = ubo.cameraPosition.xyz - fragPosition;
 }

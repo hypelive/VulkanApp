@@ -28,3 +28,8 @@ glm::mat4 Camera::getViewMatrix()
 {
 	return glm::lookAt(position, position + forward, up);
 }
+
+glm::vec3 Camera::getPosition()
+{
+	return position;
+}

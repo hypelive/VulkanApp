@@ -107,6 +107,8 @@ struct UniformBufferObject
 
     glm::mat4 vp;
     glm::mat4 mvp;
+
+    glm::vec3 cameraPosition;
 };
 
 struct LightSources
@@ -123,9 +125,9 @@ struct LightSources
     int pointCount;
 
     LightSources() :
-        ambient(glm::vec3(0.04f, 0.04f, 0.04f)), directionalCount(1), pointCount(2) 
+        ambient(glm::vec3(0.04f, 0.04f, 0.04f)), directionalCount(1), pointCount(0)
     {
-        directional[0].color = glm::vec3(0.7f, 0.7f, 0.0f);
+        directional[0].color = glm::vec3(1.0f, 1.0f, 1.0f);
         directional[0].direction = glm::vec3(-0.6667f, 0.3333f, -0.6667f);
 
         //directional[1].color = glm::vec3(0.7f, 0.0f, 0.7f);
@@ -156,7 +158,7 @@ public:
     const float CAMERA_MOVEMENT_SPEED_UP = 0.1f;
     const float CAMERA_MOVEMENT_SPEED_FORWARD = 0.1f;
 
-    const std::string MODEL_PATH = "models/sphere.obj";
+    const std::string MODEL_PATH = "models/sphere4.obj";
     const std::string TEXTURE_PATH = "textures/default.png";
 
     const std::vector<const char*> validationLayers = {
@@ -1849,6 +1851,8 @@ private:
 
         ubo.vp = ubo.proj * ubo.view;
         ubo.mvp = ubo.vp * ubo.model;
+
+        ubo.cameraPosition = camera.getPosition();
 
         void* data;
         vkMapMemory(device, uniformBuffersMemory[currentImage], 0, sizeof(ubo), 0, &data);
