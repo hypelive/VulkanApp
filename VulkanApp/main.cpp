@@ -31,6 +31,7 @@
 
 #include "Camera.h"
 #include "LightSource.h"
+#include "Material.h"
 
 struct Vertex 
 {
@@ -125,7 +126,7 @@ struct LightSources
     int pointCount;
 
     LightSources() :
-        ambient(glm::vec3(0.04f, 0.04f, 0.04f)), directionalCount(1), pointCount(0)
+        ambient(glm::vec3(0.04f, 0.04f, 0.04f)), directionalCount(1), pointCount(2)
     {
         directional[0].color = glm::vec3(1.0f, 1.0f, 1.0f);
         directional[0].direction = glm::vec3(-0.6667f, 0.3333f, -0.6667f);
@@ -175,6 +176,8 @@ public:
 
 private:
     Camera camera;
+    LightSources lightSources;
+    MaterialProperties material;
 
     GLFWwindow* window;
     VkInstance instance;
@@ -226,6 +229,9 @@ private:
     std::vector<VkBuffer> lightBuffers;
     std::vector<VkDeviceMemory> lightBuffersMemory;
 
+    std::vector<VkBuffer> materialBuffers;
+    std::vector<VkDeviceMemory> materialBuffersMemory;
+
     VkImage textureImage;
     VkDeviceMemory textureImageMemory;
     VkImageView textureImageView;
@@ -246,7 +252,10 @@ private:
     double lastCursorPosY;
 
 public:
-    VulkanApplication() : camera(glm::vec3(0.0f, 0.0f, -5.0f)) { }
+    VulkanApplication() :
+        camera(glm::vec3(0.0f, 0.0f, -5.0f)),
+        lightSources(),
+        material(glm::vec3(0.3f, 0.4f, 0.5f), 0.25f, 0.25f) { }
 
     void run()
     {
@@ -864,7 +873,14 @@ private:
         lightsLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
         lightsLayoutBinding.pImmutableSamplers = nullptr;
 
-        std::array<VkDescriptorSetLayoutBinding, 3> bindings = { uboLayoutBinding, samplerLayoutBinding, lightsLayoutBinding };
+        VkDescriptorSetLayoutBinding materialLayoutBinding{};
+        materialLayoutBinding.binding = 3;
+        materialLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        materialLayoutBinding.descriptorCount = 1;
+        materialLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        materialLayoutBinding.pImmutableSamplers = nullptr;
+
+        std::array<VkDescriptorSetLayoutBinding, 4> bindings = { uboLayoutBinding, samplerLayoutBinding, lightsLayoutBinding, materialLayoutBinding };
         VkDescriptorSetLayoutCreateInfo layoutInfo{};
         layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
         layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
@@ -894,8 +910,8 @@ private:
 
     void createGraphicsPipeline()
     {
-        auto vertShaderCode = readFile("shaders/compiled/lambertian.vert.spv");
-        auto fragShaderCode = readFile("shaders/compiled/lambertian.frag.spv");
+        auto vertShaderCode = readFile("shaders/compiled/pbr.vert.spv");
+        auto fragShaderCode = readFile("shaders/compiled/pbr.frag.spv");
 
         VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
         VkShaderModule fragShaderModule = createShaderModule(fragShaderCode);
@@ -1631,17 +1647,30 @@ private:
                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                 lightBuffers[i], lightBuffersMemory[i]);
         }
+
+        materialBuffers.resize(bufferCount);
+        materialBuffersMemory.resize(bufferCount);
+
+        for (size_t i = 0; i < bufferCount; i++)
+        {
+            createBuffer(bufferSize,
+                VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                materialBuffers[i], materialBuffersMemory[i]);
+        }
     }
 
     void createDescriptorPool()
     {
-        std::array<VkDescriptorPoolSize, 3> poolSizes{};
+        std::array<VkDescriptorPoolSize, 4> poolSizes{};
         poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         poolSizes[0].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
         poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         poolSizes[1].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
         poolSizes[2].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         poolSizes[2].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
+        poolSizes[3].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        poolSizes[3].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
 
         VkDescriptorPoolCreateInfo poolInfo{};
         poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -1687,7 +1716,12 @@ private:
             lightBufferInfo.offset = 0;
             lightBufferInfo.range = LightSources::bufferSize();
 
-            std::array<VkWriteDescriptorSet, 3> descriptorWrites{};
+            VkDescriptorBufferInfo materialBufferInfo{};
+            materialBufferInfo.buffer = materialBuffers[i];
+            materialBufferInfo.offset = 0;
+            materialBufferInfo.range = sizeof(MaterialProperties);
+
+            std::array<VkWriteDescriptorSet, 4> descriptorWrites{};
 
             descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             descriptorWrites[0].dstSet = descriptorSets[i];
@@ -1712,6 +1746,14 @@ private:
             descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
             descriptorWrites[2].descriptorCount = 1;
             descriptorWrites[2].pBufferInfo = &lightBufferInfo;
+
+            descriptorWrites[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptorWrites[3].dstSet = descriptorSets[i];
+            descriptorWrites[3].dstBinding = 3;
+            descriptorWrites[3].dstArrayElement = 0;
+            descriptorWrites[3].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            descriptorWrites[3].descriptorCount = 1;
+            descriptorWrites[3].pBufferInfo = &materialBufferInfo;
 
             vkUpdateDescriptorSets(
                 device,
@@ -1835,13 +1877,17 @@ private:
         createSyncObjects();
     }
 
-    void updateUniformBuffer(uint32_t currentImage)
+    // in seconds
+    float getTime()
     {
         static auto startTime = std::chrono::high_resolution_clock::now();
 
         auto currentTime = std::chrono::high_resolution_clock::now();
-        float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+        return std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+    }
 
+    void updateUniformBuffer(uint32_t currentImage)
+    {
         UniformBufferObject ubo{};
         ubo.model = glm::mat4(1.0f);
         ubo.view = camera.getViewMatrix();
@@ -1862,13 +1908,38 @@ private:
 
     void updateLightBuffer(uint32_t currentImage)
     {
-        // TODO object in application
-        LightSources sources{};
+        /*
+        for (int i = 0; i < lightSources.pointCount; i++)
+        {
+            // bound to chrono?
+            lightSources.point[i].position = glm::rotateY(lightSources.point[i].position, 0.001f);
+        }
+        */
 
         void* data;
         vkMapMemory(device, lightBuffersMemory[currentImage], 0, LightSources::bufferSize(), 0, &data);
-        memcpy(data, &sources, LightSources::bufferSize());
+        memcpy(data, &lightSources, LightSources::bufferSize());
         vkUnmapMemory(device, lightBuffersMemory[currentImage]);
+    }
+
+    void updateMaterial(uint32_t currentImage)
+    {
+        //float time = getTime();
+        
+        /*
+        material.F0.x = fmodf(time * 0.1f, 1.0f);
+        material.F0.y = fmodf(time * 0.25f, 1.0f);
+        material.F0.z = fmodf(time * 0.05f, 1.0f);
+        */
+
+        //material.alpha = fmodf(time * 0.2f, 1.0f);
+
+        //material.alphaG = fmodf(time * 0.2f, 1.0f);
+
+        void* data;
+        vkMapMemory(device, materialBuffersMemory[currentImage], 0, sizeof(MaterialProperties), 0, &data);
+        memcpy(data, &material, sizeof(MaterialProperties));
+        vkUnmapMemory(device, materialBuffersMemory[currentImage]);
     }
 
     void drawFrame()
@@ -1896,6 +1967,7 @@ private:
 
         updateUniformBuffer(imageIndex);
         updateLightBuffer(imageIndex);
+        updateMaterial(imageIndex);
 
         VkSubmitInfo submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -1991,6 +2063,9 @@ private:
 
             vkDestroyBuffer(device, lightBuffers[i], nullptr);
             vkFreeMemory(device, lightBuffersMemory[i], nullptr);
+
+            vkDestroyBuffer(device, materialBuffers[i], nullptr);
+            vkFreeMemory(device, materialBuffersMemory[i], nullptr);
         }
 
         vkDestroyDescriptorPool(device, descriptorPool, nullptr);
