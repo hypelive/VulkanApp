@@ -8,9 +8,9 @@
 struct MaterialProperties
 {
 	glm::vec3 F0;
-	float alpha;
-	float alphaG;
+	float alphaMaskingShadowing;
+	float alphaNormalDistribution;
 
-	MaterialProperties(glm::vec3 F0, float alpha, float alphaG) :
-		F0(F0), alpha(alpha), alphaG(alphaG) { }
+	MaterialProperties(glm::vec3 F0, float alphaMaskingShadowing, float alphaNormalDistribution) :
+		F0(F0), alphaMaskingShadowing(alphaMaskingShadowing), alphaNormalDistribution(alphaNormalDistribution) { }
 };

@@ -255,7 +255,7 @@ public:
     VulkanApplication() :
         camera(glm::vec3(0.0f, 0.0f, -5.0f)),
         lightSources(),
-        material(glm::vec3(0.3f, 0.4f, 0.5f), 0.25f, 0.25f) { }
+        material(glm::vec3(0.3f, 0.4f, 0.5f), 0.1f, 0.1f) { }
 
     void run()
     {
@@ -1932,9 +1932,9 @@ private:
         material.F0.z = fmodf(time * 0.05f, 1.0f);
         */
 
-        //material.alpha = fmodf(time * 0.2f, 1.0f);
+        //material.alphaMaskingShadowing = fmodf(time * 0.05f, 1.0f);
 
-        //material.alphaG = fmodf(time * 0.2f, 1.0f);
+        //material.alphaNormalDistribution = fmodf(time * 0.2f, 1.0f);
 
         void* data;
         vkMapMemory(device, materialBuffersMemory[currentImage], 0, sizeof(MaterialProperties), 0, &data);

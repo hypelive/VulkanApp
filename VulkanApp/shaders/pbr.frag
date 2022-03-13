@@ -2,6 +2,13 @@
 
 #define PI 3.1415926538
 
+// NDF
+#define GGX
+//#define Beckmann
+
+// G2 calculation
+//#define LambdaSqr
+
 layout(binding = 1) uniform sampler2D texSampler;
 
 struct AmbientLight
@@ -35,8 +42,8 @@ layout(binding = 2, std140) uniform LightSources
 layout(binding = 3, std140) uniform Material
 {
     vec4 F0;
-    float alpha;
-    float alphaG;
+    float alphaMS;
+    float alphaND;
 } material;
 
 layout(location = 0) in vec2 fragTexCoord;
@@ -45,11 +52,6 @@ layout(location = 2) in vec3 fragPosition;
 layout(location = 3) in vec3 fragView;
 
 layout(location = 0) out vec4 outColor;
-
-// To c++
-const vec3 F0 = vec3(0.3, 0.4, 0.5);
-const float alpha = 0.25;
-const float alphaG = 0.25; // sqr user input
 
 void getFresnelReflectance(in vec3 n, in vec3 l, out vec3 reflectance)
 {
@@ -66,28 +68,50 @@ void getMaskingShadowing(in vec3 l, in vec3 v, in vec3 m, out float maskingShado
     // Smith height-correlated masking-shadowing function
     // G2(l, v, m) = χ+(m · v)χ+(m · l)/(1 + Λ(v) + Λ(l))
 
-    // Λ(roughness) - for CGX is shape-invariant
-
+    // Λ(roughness) - for GGX/Beckmann is shape-invariant
     float MdotV = dot(m, v);
     float MdotL = dot(m, l);
-
-    float temp = MdotV*MdotV;
-
+    float sqrMdotV = MdotV*MdotV;
     float numerator = float(MdotV > 0 && MdotL > 0);
-    float denominator = sqrt(1 + material.alpha * material.alpha * (1 - temp) / temp);
+
+#if defined(GGX)
+    // (9.42)
+    float denominator = sqrt(1 + material.alphaMS * material.alphaMS * (1 - sqrMdotV) / sqrMdotV);
+
+#elif defined(Beckmann)
+    // (9.39)
+    float a = MdotV / (material.alphaMS * sqrt(1 - sqrMdotV));
+    float sqrA = a*a;
+    float denominator = 1 + 2 * float(a < 1.6) * (1 - 1.259*a + 0.396*sqrA)/(3.535*a + 2.181*sqrA);
+
+#endif
+
+#if defined(LambdaSqr)
+    // case G2 = G1 * G1 need to account sqr lambda
+    float lambda = (denominator - 1) / 2;
+    denominator = denominator + lambda * lambda;
+
+#endif
+
     maskingShadowing = numerator / denominator;
 }
 
 void getNormalDistribution(in vec3 n, in vec3 m, out float normalDistribution)
 {
-    // CGX
-
     float NdotM = dot(n, m);
-    float sqrAlpha = material.alphaG * material.alphaG;
-    
-    float temp = 1 + NdotM * NdotM * (sqrAlpha - 1);
+    float sqrAlpha = material.alphaND * material.alphaND;
 
+#if defined(GGX)
+    // (9.41)
+    float temp = 1 + NdotM * NdotM * (sqrAlpha - 1);
     normalDistribution = float(NdotM > 0) * sqrAlpha / (PI * temp * temp);
+
+#elif defined(Beckmann)
+    // (9.35)
+    float sqrNdotM = NdotM*NdotM;
+    normalDistribution = float(NdotM > 0) * exp((sqrNdotM - 1)/(sqrAlpha * sqrNdotM)) / (PI * sqrAlpha * sqrNdotM * sqrNdotM);
+
+#endif
 }
 
 void getBRDF(in vec3 n, in vec3 v, in vec3 l, vec3 rho, out vec3 value)
