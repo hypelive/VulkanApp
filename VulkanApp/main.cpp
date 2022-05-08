@@ -36,7 +36,6 @@
 struct Vertex 
 {
     glm::vec3 pos;
-    glm::vec3 color;
     glm::vec2 texCoord;
     glm::vec3 normal;
 
@@ -50,9 +49,9 @@ struct Vertex
         return bindingDescription;
     }
 
-    static std::array<VkVertexInputAttributeDescription, 4> getAttributeDescriptions()
+    static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions()
     {
-        std::array<VkVertexInputAttributeDescription, 4> attributeDescriptions{};
+        std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions{};
 
         attributeDescriptions[0].binding = 0;
         attributeDescriptions[0].location = 0;
@@ -61,18 +60,13 @@ struct Vertex
 
         attributeDescriptions[1].binding = 0;
         attributeDescriptions[1].location = 1;
-        attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-        attributeDescriptions[1].offset = offsetof(Vertex, color);
+        attributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;
+        attributeDescriptions[1].offset = offsetof(Vertex, texCoord);
 
         attributeDescriptions[2].binding = 0;
         attributeDescriptions[2].location = 2;
-        attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
-        attributeDescriptions[2].offset = offsetof(Vertex, texCoord);
-
-        attributeDescriptions[3].binding = 0;
-        attributeDescriptions[3].location = 3;
-        attributeDescriptions[3].format = VK_FORMAT_R32G32B32_SFLOAT;
-        attributeDescriptions[3].offset = offsetof(Vertex, normal);
+        attributeDescriptions[2].format = VK_FORMAT_R32G32B32_SFLOAT;
+        attributeDescriptions[2].offset = offsetof(Vertex, normal);
 
         return attributeDescriptions;
     }
@@ -80,7 +74,6 @@ struct Vertex
     bool operator ==(const Vertex& other) const
     {
         return pos == other.pos &&
-            color == other.color &&
             texCoord == other.texCoord &&
             normal == other.normal;
     }
@@ -93,9 +86,8 @@ namespace std
         size_t operator ()(Vertex const& vertex) const 
         {
             return ((hash<glm::vec3>()(vertex.pos) ^
-                (hash<glm::vec3>()(vertex.color) << 1)) >> 1) ^
                 (hash<glm::vec2>()(vertex.texCoord) << 1) ^
-                (hash<glm::vec3>()(vertex.normal) >> 8);
+                (hash<glm::vec3>()(vertex.normal) << 1)) >> 1);
         }
     };
 }
@@ -150,8 +142,8 @@ struct LightSources
 class VulkanApplication
 {
 public:
-    const uint32_t WIDTH = 800;
-    const uint32_t HEIGHT = 600;
+    const uint32_t WIDTH = 960;
+    const uint32_t HEIGHT = 540;
 
     const float CAMERA_ROTATION_SPEED_X = 0.005f;
     const float CAMERA_ROTATION_SPEED_Y = 0.005f;
@@ -255,7 +247,7 @@ public:
     VulkanApplication() :
         camera(glm::vec3(0.0f, 0.0f, -5.0f)),
         lightSources(),
-        material(glm::vec3(0.3f, 0.4f, 0.5f), 0.1f, 0.1f) { }
+        material(glm::vec3(0.3f, 0.4f, 0.5f), 0.1f) { }
 
     void run()
     {
@@ -1456,8 +1448,6 @@ private:
                     attrib.normals[3 * index.normal_index + 2]
                 };
 
-                vertex.color = { 1.0f, 1.0f, 1.0f };
-
                 if (uniqueVertices.count(vertex) == 0) 
                 {
                     uniqueVertices[vertex] = static_cast<uint32_t>(vertices.size());
@@ -1924,7 +1914,7 @@ private:
 
     void updateMaterial(uint32_t currentImage)
     {
-        //float time = getTime();
+        float time = getTime();
         
         /*
         material.F0.x = fmodf(time * 0.1f, 1.0f);
@@ -1932,9 +1922,7 @@ private:
         material.F0.z = fmodf(time * 0.05f, 1.0f);
         */
 
-        //material.alphaMaskingShadowing = fmodf(time * 0.05f, 1.0f);
-
-        //material.alphaNormalDistribution = fmodf(time * 0.2f, 1.0f);
+        material.alpha = fmodf(time * 0.05f, 1.0f);
 
         void* data;
         vkMapMemory(device, materialBuffersMemory[currentImage], 0, sizeof(MaterialProperties), 0, &data);

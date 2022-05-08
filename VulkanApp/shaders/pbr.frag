@@ -42,8 +42,7 @@ layout(binding = 2, std140) uniform LightSources
 layout(binding = 3, std140) uniform Material
 {
     vec4 F0;
-    float alphaMS;
-    float alphaND;
+    float alpha;
 } material;
 
 layout(location = 0) in vec2 fragTexCoord;
@@ -76,11 +75,11 @@ void getMaskingShadowing(in vec3 l, in vec3 v, in vec3 m, out float maskingShado
 
 #if defined(GGX)
     // (9.42)
-    float denominator = sqrt(1 + material.alphaMS * material.alphaMS * (1 - sqrMdotV) / sqrMdotV);
+    float denominator = sqrt(1 + material.alpha * material.alpha * (1 - sqrMdotV) / sqrMdotV);
 
 #elif defined(Beckmann)
     // (9.39)
-    float a = MdotV / (material.alphaMS * sqrt(1 - sqrMdotV));
+    float a = MdotV / (material.alpha * sqrt(1 - sqrMdotV));
     float sqrA = a*a;
     float denominator = 1 + 2 * float(a < 1.6) * (1 - 1.259*a + 0.396*sqrA)/(3.535*a + 2.181*sqrA);
 
@@ -99,7 +98,7 @@ void getMaskingShadowing(in vec3 l, in vec3 v, in vec3 m, out float maskingShado
 void getNormalDistribution(in vec3 n, in vec3 m, out float normalDistribution)
 {
     float NdotM = dot(n, m);
-    float sqrAlpha = material.alphaND * material.alphaND;
+    float sqrAlpha = material.alpha * material.alpha;
 
 #if defined(GGX)
     // (9.41)
