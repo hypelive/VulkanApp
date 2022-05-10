@@ -15,9 +15,17 @@ class Camera
 {
 	glm::vec3 position;
 
+	float pitch;
+	float yaw;
+
 	glm::vec3 forward;
 	glm::vec3 up;
-	// store or compute right?
+	glm::vec3 right;
+
+	const glm::vec3 DEFAULT_UP = glm::vec3(0.0f, 1.0f, 0.0f);
+	const float EPSILON = glm::pi<float>() / 180.0f;
+
+	void updateOrientation();
 
 public:
 	Camera(const glm::vec3&& position);

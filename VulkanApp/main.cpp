@@ -118,10 +118,10 @@ struct LightSources
     int pointCount;
 
     LightSources() :
-        ambient(glm::vec3(0.04f, 0.04f, 0.04f)), directionalCount(1), pointCount(2)
+        ambient(glm::vec3(0.04f, 0.04f, 0.04f)), directionalCount(0), pointCount(2)
     {
-        directional[0].color = glm::vec3(1.0f, 1.0f, 1.0f);
-        directional[0].direction = glm::vec3(-0.6667f, 0.3333f, -0.6667f);
+        //directional[0].color = glm::vec3(1.0f, 1.0f, 1.0f);
+        //directional[0].direction = glm::vec3(-0.6667f, 0.3333f, -0.6667f);
 
         //directional[1].color = glm::vec3(0.7f, 0.0f, 0.7f);
         //directional[1].direction = glm::vec3(0.6667f, 0.3333f, 0.6667f);
@@ -151,7 +151,7 @@ public:
     const float CAMERA_MOVEMENT_SPEED_UP = 0.1f;
     const float CAMERA_MOVEMENT_SPEED_FORWARD = 0.1f;
 
-    const std::string MODEL_PATH = "models/sphere4.obj";
+    const std::string MODEL_PATH = "models/monkey.obj";
     const std::string TEXTURE_PATH = "textures/default.png";
 
     const std::vector<const char*> validationLayers = {
@@ -371,7 +371,7 @@ private:
 
         float offsetX = static_cast<float>(xpos - app->lastCursorPosX);
         float offsetY = static_cast<float>(ypos - app->lastCursorPosY);
-        app->camera.rotate(glm::vec2(-offsetX * app->CAMERA_ROTATION_SPEED_X, -offsetY * app->CAMERA_ROTATION_SPEED_Y));
+        app->camera.rotate(glm::vec2(offsetX * app->CAMERA_ROTATION_SPEED_X, -offsetY * app->CAMERA_ROTATION_SPEED_Y));
 
         app->lastCursorPosX = xpos;
         app->lastCursorPosY = ypos;
@@ -1430,17 +1430,10 @@ private:
                     attrib.vertices[3 * index.vertex_index + 2]
                 };
 
-                if (attrib.texcoords.size() == 0)
-                {
-                    vertex.texCoord = { 0.0f, 0.0f };
-                }
-                else
-                {
-                    vertex.texCoord = {
-                        attrib.texcoords[2 * index.texcoord_index + 0],
-                        1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
-                    };
-                }
+                vertex.texCoord = {
+                    attrib.texcoords[2 * index.texcoord_index + 0],
+                    1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
+                };
 
                 vertex.normal = {
                     attrib.normals[3 * index.normal_index + 0],
@@ -1898,13 +1891,13 @@ private:
 
     void updateLightBuffer(uint32_t currentImage)
     {
-        /*
+        
         for (int i = 0; i < lightSources.pointCount; i++)
         {
             // bound to chrono?
             lightSources.point[i].position = glm::rotateY(lightSources.point[i].position, 0.001f);
         }
-        */
+        
 
         void* data;
         vkMapMemory(device, lightBuffersMemory[currentImage], 0, LightSources::bufferSize(), 0, &data);
@@ -1914,7 +1907,7 @@ private:
 
     void updateMaterial(uint32_t currentImage)
     {
-        float time = getTime();
+        //float time = getTime();
         
         /*
         material.F0.x = fmodf(time * 0.1f, 1.0f);
@@ -1922,7 +1915,7 @@ private:
         material.F0.z = fmodf(time * 0.05f, 1.0f);
         */
 
-        material.alpha = fmodf(time * 0.05f, 1.0f);
+        //material.alpha = fmodf(time * 0.1f, 1.0f);
 
         void* data;
         vkMapMemory(device, materialBuffersMemory[currentImage], 0, sizeof(MaterialProperties), 0, &data);
