@@ -29,68 +29,7 @@
 #include <chrono>
 #include <unordered_map>
 
-#include "Camera.h"
-#include "LightSource.h"
-#include "Material.h"
-
-struct Vertex 
-{
-    glm::vec3 pos;
-    glm::vec2 texCoord;
-    glm::vec3 normal;
-
-    static VkVertexInputBindingDescription getBindingDescription()
-    {
-        VkVertexInputBindingDescription bindingDescription{};
-        bindingDescription.binding = 0;
-        bindingDescription.stride = sizeof(Vertex);
-        bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
-        return bindingDescription;
-    }
-
-    static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions()
-    {
-        std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions{};
-
-        attributeDescriptions[0].binding = 0;
-        attributeDescriptions[0].location = 0;
-        attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-        attributeDescriptions[0].offset = offsetof(Vertex, pos);
-
-        attributeDescriptions[1].binding = 0;
-        attributeDescriptions[1].location = 1;
-        attributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;
-        attributeDescriptions[1].offset = offsetof(Vertex, texCoord);
-
-        attributeDescriptions[2].binding = 0;
-        attributeDescriptions[2].location = 2;
-        attributeDescriptions[2].format = VK_FORMAT_R32G32B32_SFLOAT;
-        attributeDescriptions[2].offset = offsetof(Vertex, normal);
-
-        return attributeDescriptions;
-    }
-
-    bool operator ==(const Vertex& other) const
-    {
-        return pos == other.pos &&
-            texCoord == other.texCoord &&
-            normal == other.normal;
-    }
-};
-
-namespace std 
-{
-    template<> struct hash<Vertex> 
-    {
-        size_t operator ()(Vertex const& vertex) const 
-        {
-            return ((hash<glm::vec3>()(vertex.pos) ^
-                (hash<glm::vec2>()(vertex.texCoord) << 1) ^
-                (hash<glm::vec3>()(vertex.normal) << 1)) >> 1);
-        }
-    };
-}
+#include "Scene.h"
 
 struct UniformBufferObject 
 {
@@ -102,41 +41,6 @@ struct UniformBufferObject
     glm::mat4 mvp;
 
     glm::vec3 cameraPosition;
-};
-
-struct LightSources
-{
-    static const int MAX_DIRECTIONAL_LIGHTS = 4;
-    static const int MAX_POINT_LIGHTS = 8;
-
-    AmbientLight ambient;
-
-    DirectionalLight directional[MAX_DIRECTIONAL_LIGHTS] { };
-    int directionalCount;
-
-    PointLight point[MAX_POINT_LIGHTS] { };
-    int pointCount;
-
-    LightSources() :
-        ambient(glm::vec3(0.04f, 0.04f, 0.04f)), directionalCount(0), pointCount(2)
-    {
-        //directional[0].color = glm::vec3(1.0f, 1.0f, 1.0f);
-        //directional[0].direction = glm::vec3(-0.6667f, 0.3333f, -0.6667f);
-
-        //directional[1].color = glm::vec3(0.7f, 0.0f, 0.7f);
-        //directional[1].direction = glm::vec3(0.6667f, 0.3333f, 0.6667f);
-
-        point[0].color = glm::vec3(70.0f, 0.0f, 70.0f);
-        point[0].position = glm::vec3(0.0f, 0.0f, -4.0f);
-
-        point[1].color = glm::vec3(70.0f, 0.0f, 0.0f);
-        point[1].position = glm::vec3(0.0f, 0.0f, 4.0f);
-    }
-
-    static size_t bufferSize()
-    {
-        return sizeof(LightSources);
-    }
 };
 
 class VulkanApplication
@@ -151,7 +55,10 @@ public:
     const float CAMERA_MOVEMENT_SPEED_UP = 0.1f;
     const float CAMERA_MOVEMENT_SPEED_FORWARD = 0.1f;
 
-    const std::string MODEL_PATH = "models/monkey.obj";
+    const std::vector<const char*> modelPaths = {
+        "models/monkey.obj",
+        "models/sphere.obj"
+    };
     const std::string TEXTURE_PATH = "textures/default.png";
 
     const std::vector<const char*> validationLayers = {
@@ -167,9 +74,7 @@ public:
     const int MAX_FRAMES_IN_FLIGHT = 2;
 
 private:
-    Camera camera;
-    LightSources lightSources;
-    MaterialProperties material;
+    Scene scene;
 
     GLFWwindow* window;
     VkInstance instance;
@@ -207,9 +112,6 @@ private:
 
     bool framebufferResized;
 
-    std::vector<Vertex> vertices;
-    std::vector<uint32_t> indices;
-
     VkBuffer vertexBuffer;
     VkDeviceMemory vertexBufferMemory;
     VkBuffer indexBuffer;
@@ -244,11 +146,6 @@ private:
     double lastCursorPosY;
 
 public:
-    VulkanApplication() :
-        camera(glm::vec3(0.0f, 0.0f, -5.0f)),
-        lightSources(),
-        material(glm::vec3(0.3f, 0.4f, 0.5f), 0.1f) { }
-
     void run()
     {
         initWindow();
@@ -317,22 +214,22 @@ private:
             switch (key)
             {
             case GLFW_KEY_W:
-                app->camera.translate(glm::vec3(0.0f, 0.0f, app->CAMERA_MOVEMENT_SPEED_FORWARD));
+                app->scene.camera.translate(glm::vec3(0.0f, 0.0f, app->CAMERA_MOVEMENT_SPEED_FORWARD));
                 break;
             case GLFW_KEY_A:
-                app->camera.translate(glm::vec3(-app->CAMERA_MOVEMENT_SPEED_RIGHT, 0.0f, 0.0f));
+                app->scene.camera.translate(glm::vec3(-app->CAMERA_MOVEMENT_SPEED_RIGHT, 0.0f, 0.0f));
                 break;
             case GLFW_KEY_S:
-                app->camera.translate(glm::vec3(0.0f, 0.0f, -app->CAMERA_MOVEMENT_SPEED_FORWARD));
+                app->scene.camera.translate(glm::vec3(0.0f, 0.0f, -app->CAMERA_MOVEMENT_SPEED_FORWARD));
                 break;
             case GLFW_KEY_D:
-                app->camera.translate(glm::vec3(app->CAMERA_MOVEMENT_SPEED_RIGHT, 0.0f, 0.0f));
+                app->scene.camera.translate(glm::vec3(app->CAMERA_MOVEMENT_SPEED_RIGHT, 0.0f, 0.0f));
                 break;
             case GLFW_KEY_SPACE:
-                app->camera.translate(glm::vec3(0.0f, app->CAMERA_MOVEMENT_SPEED_UP, 0.0f));
+                app->scene.camera.translate(glm::vec3(0.0f, app->CAMERA_MOVEMENT_SPEED_UP, 0.0f));
                 break;
             case GLFW_KEY_LEFT_CONTROL:
-                app->camera.translate(glm::vec3(0.0f, -app->CAMERA_MOVEMENT_SPEED_UP, 0.0f));
+                app->scene.camera.translate(glm::vec3(0.0f, -app->CAMERA_MOVEMENT_SPEED_UP, 0.0f));
                 break;
             }
         }
@@ -370,8 +267,8 @@ private:
         }
 
         float offsetX = static_cast<float>(xpos - app->lastCursorPosX);
-        float offsetY = static_cast<float>(ypos - app->lastCursorPosY);
-        app->camera.rotate(glm::vec2(offsetX * app->CAMERA_ROTATION_SPEED_X, -offsetY * app->CAMERA_ROTATION_SPEED_Y));
+        float offsetY = static_cast<float>(app->lastCursorPosY - ypos);
+        app->scene.camera.rotate(glm::vec2(offsetX * app->CAMERA_ROTATION_SPEED_X, offsetY * app->CAMERA_ROTATION_SPEED_Y));
 
         app->lastCursorPosX = xpos;
         app->lastCursorPosY = ypos;
@@ -1405,50 +1302,61 @@ private:
 
     void loadModel()
     {
-        tinyobj::attrib_t attrib;
-        std::vector<tinyobj::shape_t> shapes;
-        std::vector<tinyobj::material_t> materials;
-        std::string warn, err;
+        scene.modelData.resize(modelPaths.size());
 
-        if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, MODEL_PATH.c_str())) 
+        for (int i = 0; i < modelPaths.size(); i++)
         {
-            throw std::runtime_error(warn + err);
-        }
+            tinyobj::attrib_t attrib;
+            std::vector<tinyobj::shape_t> shapes;
+            std::vector<tinyobj::material_t> materials;
+            std::string warn, err;
 
-        // for index buffer
-        std::unordered_map<Vertex, uint32_t> uniqueVertices{};
-
-        for (const auto& shape : shapes) 
-        {
-            for (const auto& index : shape.mesh.indices) 
+            if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, modelPaths[i]))
             {
-                Vertex vertex{};
-
-                vertex.pos = {
-                    attrib.vertices[3 * index.vertex_index + 0],
-                    attrib.vertices[3 * index.vertex_index + 1],
-                    attrib.vertices[3 * index.vertex_index + 2]
-                };
-
-                vertex.texCoord = {
-                    attrib.texcoords[2 * index.texcoord_index + 0],
-                    1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
-                };
-
-                vertex.normal = {
-                    attrib.normals[3 * index.normal_index + 0],
-                    attrib.normals[3 * index.normal_index + 1],
-                    attrib.normals[3 * index.normal_index + 2]
-                };
-
-                if (uniqueVertices.count(vertex) == 0) 
-                {
-                    uniqueVertices[vertex] = static_cast<uint32_t>(vertices.size());
-                    vertices.push_back(vertex);
-                }
-
-                indices.push_back(uniqueVertices[vertex]);
+                throw std::runtime_error(warn + err);
             }
+
+            ModelData currentModelData{};
+            currentModelData.Id = static_cast<uint32_t>(i);
+            currentModelData.FirstIndex = static_cast<uint32_t>(scene.indices.size());
+
+            std::unordered_map<Vertex, uint32_t> uniqueVertices{};
+
+            for (const auto& shape : shapes)
+            {
+                for (const auto& index : shape.mesh.indices)
+                {
+                    Vertex vertex{};
+
+                    vertex.pos = {
+                        attrib.vertices[3 * index.vertex_index + 0],
+                        attrib.vertices[3 * index.vertex_index + 1],
+                        attrib.vertices[3 * index.vertex_index + 2]
+                    };
+
+                    vertex.texCoord = {
+                        attrib.texcoords[2 * index.texcoord_index + 0],
+                        1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
+                    };
+
+                    vertex.normal = {
+                        attrib.normals[3 * index.normal_index + 0],
+                        attrib.normals[3 * index.normal_index + 1],
+                        attrib.normals[3 * index.normal_index + 2]
+                    };
+
+                    if (uniqueVertices.count(vertex) == 0)
+                    {
+                        uniqueVertices[vertex] = static_cast<uint32_t>(scene.vertices.size());
+                        scene.vertices.push_back(vertex);
+                    }
+
+                    scene.indices.push_back(uniqueVertices[vertex]);
+                }
+            }
+
+            currentModelData.IndexCount = static_cast<uint32_t>(scene.indices.size() - currentModelData.FirstIndex);
+            scene.modelData.push_back(currentModelData);
         }
     }
 
@@ -1550,7 +1458,7 @@ private:
 
     void createVertexBuffer()
     {
-        VkDeviceSize bufferSize = sizeof(Vertex) * vertices.size();
+        VkDeviceSize bufferSize = sizeof(Vertex) * scene.vertices.size();
         
         VkBuffer stagingBuffer;
         VkDeviceMemory stagingBufferMemory;
@@ -1561,7 +1469,7 @@ private:
 
         void* data;
         vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
-        memcpy(data, vertices.data(), (size_t)bufferSize);
+        memcpy(data, scene.vertices.data(), (size_t)bufferSize);
         vkUnmapMemory(device, stagingBufferMemory);
 
         createBuffer(bufferSize,
@@ -1577,7 +1485,7 @@ private:
 
     void createIndexBuffer() 
     {
-        VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
+        VkDeviceSize bufferSize = sizeof(scene.indices[0]) * scene.indices.size();
 
         VkBuffer stagingBuffer;
         VkDeviceMemory stagingBufferMemory;
@@ -1588,7 +1496,7 @@ private:
 
         void* data;
         vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
-        memcpy(data, indices.data(), (size_t)bufferSize);
+        memcpy(data, scene.indices.data(), (size_t)bufferSize);
         vkUnmapMemory(device, stagingBufferMemory);
 
         createBuffer(bufferSize,
@@ -1797,8 +1705,13 @@ private:
             vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
             vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[i], 0, nullptr);
+            
+            for (auto modelDataIterator = scene.modelData.begin(); modelDataIterator < scene.modelData.end(); modelDataIterator++)
+            {
+                ModelData currentModelData = *modelDataIterator;
+                vkCmdDrawIndexed(commandBuffers[i], currentModelData.IndexCount, 1, currentModelData.FirstIndex, 0, 0);
+            }
 
-            vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
             vkCmdEndRenderPass(commandBuffers[i]);
 
             if (vkEndCommandBuffer(commandBuffers[i]) != VK_SUCCESS) 
@@ -1873,7 +1786,7 @@ private:
     {
         UniformBufferObject ubo{};
         ubo.model = glm::mat4(1.0f);
-        ubo.view = camera.getViewMatrix();
+        ubo.view = scene.camera.getViewMatrix();
         ubo.proj = glm::perspective(glm::radians(40.0f), (float)swapChainExtent.width / swapChainExtent.height, 0.1f, 1000.0f);
 
         ubo.proj[1][1] *= -1;
@@ -1881,7 +1794,7 @@ private:
         ubo.vp = ubo.proj * ubo.view;
         ubo.mvp = ubo.vp * ubo.model;
 
-        ubo.cameraPosition = camera.getPosition();
+        ubo.cameraPosition = scene.camera.getPosition();
 
         void* data;
         vkMapMemory(device, uniformBuffersMemory[currentImage], 0, sizeof(ubo), 0, &data);
@@ -1891,17 +1804,15 @@ private:
 
     void updateLightBuffer(uint32_t currentImage)
     {
-        
-        for (int i = 0; i < lightSources.pointCount; i++)
+        for (int i = 0; i < scene.lightSources.pointCount; i++)
         {
             // bound to chrono?
-            lightSources.point[i].position = glm::rotateY(lightSources.point[i].position, 0.001f);
+            scene.lightSources.point[i].position = glm::rotateY(scene.lightSources.point[i].position, 0.001f);
         }
-        
 
         void* data;
         vkMapMemory(device, lightBuffersMemory[currentImage], 0, LightSources::bufferSize(), 0, &data);
-        memcpy(data, &lightSources, LightSources::bufferSize());
+        memcpy(data, &scene.lightSources, LightSources::bufferSize());
         vkUnmapMemory(device, lightBuffersMemory[currentImage]);
     }
 
@@ -1919,7 +1830,7 @@ private:
 
         void* data;
         vkMapMemory(device, materialBuffersMemory[currentImage], 0, sizeof(MaterialProperties), 0, &data);
-        memcpy(data, &material, sizeof(MaterialProperties));
+        memcpy(data, &scene.material, sizeof(MaterialProperties));
         vkUnmapMemory(device, materialBuffersMemory[currentImage]);
     }
 

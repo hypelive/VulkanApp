@@ -9,8 +9,6 @@
 #include <glm/gtx/quaternion.hpp>
 #include <glm/ext/scalar_constants.hpp>
 
-
-// TODO transform component
 class Camera
 {
 	glm::vec3 position;
