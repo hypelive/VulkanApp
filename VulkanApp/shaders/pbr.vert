@@ -1,13 +1,13 @@
 #version 450
 
+const int MAX_MODELS_COUNT = 1;
 layout(binding = 0) uniform UniformBufferObject
 {
-    mat4 model;
+    mat4 models[MAX_MODELS_COUNT];
     mat4 view;
     mat4 proj;
 
     mat4 vp;
-    mat4 mvp;
 
     vec4 cameraPosition;
 } ubo;
@@ -23,13 +23,13 @@ layout(location = 3) out vec3 fragView;
 
 void main() 
 {
-    vec4 worldPosition = ubo.model * vec4(inPosition, 1.0);
+    vec4 worldPosition = ubo.models[0] * vec4(inPosition, 1.0);
     fragPosition = worldPosition.xyz;
     gl_Position = ubo.vp * worldPosition;
 
     fragTexCoord = inTexCoord;
 
-    fragNormal = (ubo.model * vec4(inNormal, 0.0)).xyz;
+    fragNormal = (ubo.models[0] * vec4(inNormal, 0.0)).xyz;
 
     fragView = ubo.cameraPosition.xyz - fragPosition;
 }

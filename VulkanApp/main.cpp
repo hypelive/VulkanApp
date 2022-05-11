@@ -1,19 +1,3 @@
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
-#define GLM_FORCE_RADIANS
-#define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#define GLM_ENABLE_EXPERIMENTAL
-#include <glm/gtx/hash.hpp>
-
-#define STB_IMAGE_IMPLEMENTATION
-#include <stb_image.h>
-
-#define TINYOBJLOADER_IMPLEMENTATION
-#include <tiny_obj_loader.h>
-
 #include <iostream>
 #include <stdexcept>
 #include <vector>
@@ -29,16 +13,32 @@
 #include <chrono>
 #include <unordered_map>
 
+#define GLFW_INCLUDE_VULKAN
+#include <GLFW/glfw3.h>
+#define GLM_FORCE_RADIANS
+#define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/hash.hpp>
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
+#define TINYOBJLOADER_IMPLEMENTATION
+#include <tiny_obj_loader.h>
+
 #include "Scene.h"
+
+const int MAX_MODELS_COUNT = 1;
 
 struct UniformBufferObject 
 {
-    glm::mat4 model;
+
+    glm::mat4 models[MAX_MODELS_COUNT];
     glm::mat4 view;
     glm::mat4 proj;
 
     glm::mat4 vp;
-    glm::mat4 mvp;
 
     glm::vec3 cameraPosition;
 };
@@ -1302,7 +1302,9 @@ private:
 
     void loadModel()
     {
-        scene.modelData.resize(modelPaths.size());
+        assert(modelPaths.size() < MAX_MODELS_COUNT);
+
+        scene.sceneObjects.resize(modelPaths.size());
 
         for (int i = 0; i < modelPaths.size(); i++)
         {
@@ -1316,9 +1318,10 @@ private:
                 throw std::runtime_error(warn + err);
             }
 
-            ModelData currentModelData{};
-            currentModelData.Id = static_cast<uint32_t>(i);
-            currentModelData.FirstIndex = static_cast<uint32_t>(scene.indices.size());
+            Transform currentTransform = Transform();
+
+            MeshData currentMeshData{};
+            currentMeshData.firstIndex = static_cast<uint32_t>(scene.indices.size());
 
             std::unordered_map<Vertex, uint32_t> uniqueVertices{};
 
@@ -1355,8 +1358,9 @@ private:
                 }
             }
 
-            currentModelData.IndexCount = static_cast<uint32_t>(scene.indices.size() - currentModelData.FirstIndex);
-            scene.modelData.push_back(currentModelData);
+            currentMeshData.indexCount = static_cast<uint32_t>(scene.indices.size() - currentMeshData.firstIndex);
+
+            scene.sceneObjects.push_back(SceneObject(static_cast<uint32_t>(i), currentTransform, currentMeshData));
         }
     }
 
@@ -1706,10 +1710,10 @@ private:
 
             vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[i], 0, nullptr);
             
-            for (auto modelDataIterator = scene.modelData.begin(); modelDataIterator < scene.modelData.end(); modelDataIterator++)
+            for (auto modelDataIterator = scene.sceneObjects.begin(); modelDataIterator < scene.sceneObjects.end(); modelDataIterator++)
             {
-                ModelData currentModelData = *modelDataIterator;
-                vkCmdDrawIndexed(commandBuffers[i], currentModelData.IndexCount, 1, currentModelData.FirstIndex, 0, 0);
+                MeshData currentMeshData = modelDataIterator->meshData;
+                vkCmdDrawIndexed(commandBuffers[i], currentMeshData.indexCount, 1, currentMeshData.firstIndex, 0, 0);
             }
 
             vkCmdEndRenderPass(commandBuffers[i]);
@@ -1785,14 +1789,18 @@ private:
     void updateUniformBuffer(uint32_t currentImage)
     {
         UniformBufferObject ubo{};
-        ubo.model = glm::mat4(1.0f);
+
+        for (int i = 0; i < scene.sceneObjects.size(); i++)
+        {
+            ubo.models[i] = scene.sceneObjects[i].transform.GetMatrix();
+        }
+
         ubo.view = scene.camera.getViewMatrix();
         ubo.proj = glm::perspective(glm::radians(40.0f), (float)swapChainExtent.width / swapChainExtent.height, 0.1f, 1000.0f);
 
         ubo.proj[1][1] *= -1;
 
         ubo.vp = ubo.proj * ubo.view;
-        ubo.mvp = ubo.vp * ubo.model;
 
         ubo.cameraPosition = scene.camera.getPosition();
 
