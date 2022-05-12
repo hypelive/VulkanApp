@@ -31,10 +31,13 @@
 
 const int MAX_MODELS_COUNT = 1;
 
+struct DynamicUniformBufferObject
+{
+    glm::mat4 model;
+};
+
 struct UniformBufferObject 
 {
-
-    glm::mat4 models[MAX_MODELS_COUNT];
     glm::mat4 view;
     glm::mat4 proj;
 
@@ -125,6 +128,11 @@ private:
 
     std::vector<VkBuffer> materialBuffers;
     std::vector<VkDeviceMemory> materialBuffersMemory;
+
+    std::vector<VkBuffer> dynamicUniformBuffers;
+    std::vector<VkDeviceMemory> dynamicUniformBuffersMemory;
+
+    uint32_t dynamicUniformBufferOffsets[1] { 0 };
 
     VkImage textureImage;
     VkDeviceMemory textureImageMemory;
@@ -752,8 +760,8 @@ private:
         samplerLayoutBinding.binding = 1;
         samplerLayoutBinding.descriptorCount = 1;
         samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        samplerLayoutBinding.pImmutableSamplers = nullptr;
         samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        samplerLayoutBinding.pImmutableSamplers = nullptr;
 
         VkDescriptorSetLayoutBinding lightsLayoutBinding{};
         lightsLayoutBinding.binding = 2;
@@ -769,7 +777,14 @@ private:
         materialLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
         materialLayoutBinding.pImmutableSamplers = nullptr;
 
-        std::array<VkDescriptorSetLayoutBinding, 4> bindings = { uboLayoutBinding, samplerLayoutBinding, lightsLayoutBinding, materialLayoutBinding };
+        VkDescriptorSetLayoutBinding duboLayoutBinding{};
+        duboLayoutBinding.binding = 4;
+        duboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+        duboLayoutBinding.descriptorCount = 1;
+        duboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        duboLayoutBinding.pImmutableSamplers = nullptr;
+
+        std::array<VkDescriptorSetLayoutBinding, 5> bindings = { uboLayoutBinding, samplerLayoutBinding, lightsLayoutBinding, materialLayoutBinding, duboLayoutBinding };
         VkDescriptorSetLayoutCreateInfo layoutInfo{};
         layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
         layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
@@ -1516,9 +1531,8 @@ private:
 
     void createUniformBuffers()
     {
-        VkDeviceSize bufferSize = sizeof(UniformBufferObject);
-
         size_t bufferCount = swapChainImages.size();
+        VkDeviceSize bufferSize = sizeof(UniformBufferObject);
         uniformBuffers.resize(bufferCount);
         uniformBuffersMemory.resize(bufferCount);
 
@@ -1531,7 +1545,6 @@ private:
         }
 
         bufferSize = LightSources::bufferSize();
-
         lightBuffers.resize(bufferCount);
         lightBuffersMemory.resize(bufferCount);
 
@@ -1543,6 +1556,7 @@ private:
                 lightBuffers[i], lightBuffersMemory[i]);
         }
 
+        bufferSize = sizeof(MaterialProperties);
         materialBuffers.resize(bufferCount);
         materialBuffersMemory.resize(bufferCount);
 
@@ -1553,11 +1567,23 @@ private:
                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                 materialBuffers[i], materialBuffersMemory[i]);
         }
+
+        bufferSize = sizeof(DynamicUniformBufferObject);
+        dynamicUniformBuffers.resize(bufferCount);
+        dynamicUniformBuffersMemory.resize(bufferCount);
+
+        for (size_t i = 0; i < bufferCount; i++)
+        {
+            createBuffer(bufferSize,
+                VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                dynamicUniformBuffers[i], dynamicUniformBuffersMemory[i]);
+        }
     }
 
     void createDescriptorPool()
     {
-        std::array<VkDescriptorPoolSize, 4> poolSizes{};
+        std::array<VkDescriptorPoolSize, 5> poolSizes{};
         poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         poolSizes[0].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
         poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -1566,6 +1592,8 @@ private:
         poolSizes[2].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
         poolSizes[3].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         poolSizes[3].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
+        poolSizes[4].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+        poolSizes[4].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
 
         VkDescriptorPoolCreateInfo poolInfo{};
         poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -1616,7 +1644,12 @@ private:
             materialBufferInfo.offset = 0;
             materialBufferInfo.range = sizeof(MaterialProperties);
 
-            std::array<VkWriteDescriptorSet, 4> descriptorWrites{};
+            VkDescriptorBufferInfo dynamicBufferInfo{};
+            dynamicBufferInfo.buffer = dynamicUniformBuffers[i];
+            dynamicBufferInfo.offset = 0;
+            dynamicBufferInfo.range = sizeof(DynamicUniformBufferObject);
+
+            std::array<VkWriteDescriptorSet, 5> descriptorWrites{};
 
             descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             descriptorWrites[0].dstSet = descriptorSets[i];
@@ -1649,6 +1682,14 @@ private:
             descriptorWrites[3].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
             descriptorWrites[3].descriptorCount = 1;
             descriptorWrites[3].pBufferInfo = &materialBufferInfo;
+
+            descriptorWrites[4].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptorWrites[4].dstSet = descriptorSets[i];
+            descriptorWrites[4].dstBinding = 4;
+            descriptorWrites[4].dstArrayElement = 0;
+            descriptorWrites[4].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+            descriptorWrites[4].descriptorCount = 1;
+            descriptorWrites[4].pBufferInfo = &dynamicBufferInfo;
 
             vkUpdateDescriptorSets(
                 device,
@@ -1708,7 +1749,7 @@ private:
             vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
             vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
-            vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[i], 0, nullptr);
+            vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[i], 1, dynamicUniformBufferOffsets);
             
             for (auto modelDataIterator = scene.sceneObjects.begin(); modelDataIterator < scene.sceneObjects.end(); modelDataIterator++)
             {
@@ -1786,14 +1827,9 @@ private:
         return std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
     }
 
-    void updateUniformBuffer(uint32_t currentImage)
+    void updateUniformBuffers(uint32_t currentImage)
     {
         UniformBufferObject ubo{};
-
-        for (int i = 0; i < scene.sceneObjects.size(); i++)
-        {
-            ubo.models[i] = scene.sceneObjects[i].transform.GetMatrix();
-        }
 
         ubo.view = scene.camera.getViewMatrix();
         ubo.proj = glm::perspective(glm::radians(40.0f), (float)swapChainExtent.width / swapChainExtent.height, 0.1f, 1000.0f);
@@ -1808,6 +1844,17 @@ private:
         vkMapMemory(device, uniformBuffersMemory[currentImage], 0, sizeof(ubo), 0, &data);
         memcpy(data, &ubo, sizeof(ubo));
         vkUnmapMemory(device, uniformBuffersMemory[currentImage]);
+
+        DynamicUniformBufferObject dubo{};
+        /*for (int i = 0; i < scene.sceneObjects.size(); i++)
+        {
+            ubo.models[i] = scene.sceneObjects[i].transform.GetMatrix();
+        }*/
+        dubo.model = scene.sceneObjects[0].transform.GetMatrix();
+
+        vkMapMemory(device, dynamicUniformBuffersMemory[currentImage], 0, sizeof(dubo), 0, &data);
+        memcpy(data, &dubo, sizeof(dubo));
+        vkUnmapMemory(device, dynamicUniformBuffersMemory[currentImage]);
     }
 
     void updateLightBuffer(uint32_t currentImage)
@@ -1865,7 +1912,7 @@ private:
         }
         imagesInFlight[imageIndex] = inFlightFences[currentFrame];
 
-        updateUniformBuffer(imageIndex);
+        updateUniformBuffers(imageIndex);
         updateLightBuffer(imageIndex);
         updateMaterial(imageIndex);
 
@@ -1960,6 +2007,9 @@ private:
         {
             vkDestroyBuffer(device, uniformBuffers[i], nullptr);
             vkFreeMemory(device, uniformBuffersMemory[i], nullptr);
+
+            vkDestroyBuffer(device, dynamicUniformBuffers[i], nullptr);
+            vkFreeMemory(device, dynamicUniformBuffersMemory[i], nullptr);
 
             vkDestroyBuffer(device, lightBuffers[i], nullptr);
             vkFreeMemory(device, lightBuffersMemory[i], nullptr);

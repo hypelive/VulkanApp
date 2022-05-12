@@ -1,9 +1,7 @@
 #version 450
 
-const int MAX_MODELS_COUNT = 1;
 layout(binding = 0) uniform UniformBufferObject
 {
-    mat4 models[MAX_MODELS_COUNT];
     mat4 view;
     mat4 proj;
 
@@ -11,6 +9,11 @@ layout(binding = 0) uniform UniformBufferObject
 
     vec4 cameraPosition;
 } ubo;
+
+layout(binding = 4) uniform DynamicUniformBufferObject
+{
+    mat4 model;
+} dubo;
 
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec2 inTexCoord;
@@ -23,13 +26,13 @@ layout(location = 3) out vec3 fragView;
 
 void main() 
 {
-    vec4 worldPosition = ubo.models[0] * vec4(inPosition, 1.0);
+    vec4 worldPosition = dubo.model * vec4(inPosition, 1.0);
     fragPosition = worldPosition.xyz;
     gl_Position = ubo.vp * worldPosition;
 
     fragTexCoord = inTexCoord;
 
-    fragNormal = (ubo.models[0] * vec4(inNormal, 0.0)).xyz;
+    fragNormal = (dubo.model * vec4(inNormal, 0.0)).xyz;
 
     fragView = ubo.cameraPosition.xyz - fragPosition;
 }
