@@ -1,9 +1,9 @@
 #include "Transform.h"
 
 Transform::Transform() :
-	position(glm::vec3(0.0f, 0.0f, 0.0f)),
-	rotation(glm::quat(0.0f, 0.0f, 0.0f, 1.0f)),
-	scale(glm::vec3(1.0f, 1.0f, 1.0f)) { }
+	position(glm::zero<glm::vec3>()),
+	rotation(glm::identity<glm::quat>()),
+	scale(glm::one<glm::vec3>()) { }
 
 Transform::Transform(glm::vec3 position, glm::quat rotation, glm::vec3 scale) :
 	position(position), rotation(rotation), scale(scale) { }

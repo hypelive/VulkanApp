@@ -29,11 +29,15 @@
 
 #include "Scene.h"
 
-const int MAX_MODELS_COUNT = 1;
-
+const int MAX_MODELS_COUNT = 2;
 struct DynamicUniformBufferObject
 {
-    glm::mat4 model;
+    glm::mat4 modelMatrices[MAX_MODELS_COUNT];
+
+    static size_t GetOneBufferSize()
+    {
+        return sizeof(glm::mat4);
+    }
 };
 
 struct UniformBufferObject 
@@ -131,8 +135,6 @@ private:
 
     std::vector<VkBuffer> dynamicUniformBuffers;
     std::vector<VkDeviceMemory> dynamicUniformBuffersMemory;
-
-    uint32_t dynamicUniformBufferOffsets[1] { 0 };
 
     VkImage textureImage;
     VkDeviceMemory textureImageMemory;
@@ -1375,7 +1377,7 @@ private:
 
             currentMeshData.indexCount = static_cast<uint32_t>(scene.indices.size() - currentMeshData.firstIndex);
 
-            scene.sceneObjects.push_back(SceneObject(static_cast<uint32_t>(i), currentTransform, currentMeshData));
+            scene.sceneObjects[i] = SceneObject(static_cast<uint32_t>(i), currentTransform, currentMeshData);
         }
     }
 
@@ -1748,12 +1750,13 @@ private:
             VkDeviceSize offsets[] = { 0 };
             vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
             vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-
-            vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[i], 1, dynamicUniformBufferOffsets);
             
-            for (auto modelDataIterator = scene.sceneObjects.begin(); modelDataIterator < scene.sceneObjects.end(); modelDataIterator++)
+            for (uint32_t j = 0; j < scene.sceneObjects.size(); j++)
             {
-                MeshData currentMeshData = modelDataIterator->meshData;
+                // TODO calculate with alignment
+                uint32_t dynamicOffset = j * static_cast<uint32_t>(DynamicUniformBufferObject::GetOneBufferSize());
+                vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[i], 1, &dynamicOffset);
+                MeshData currentMeshData = scene.sceneObjects[i].meshData;
                 vkCmdDrawIndexed(commandBuffers[i], currentMeshData.indexCount, 1, currentMeshData.firstIndex, 0, 0);
             }
 
@@ -1846,11 +1849,10 @@ private:
         vkUnmapMemory(device, uniformBuffersMemory[currentImage]);
 
         DynamicUniformBufferObject dubo{};
-        /*for (int i = 0; i < scene.sceneObjects.size(); i++)
+        for (int i = 0; i < scene.sceneObjects.size(); i++)
         {
-            ubo.models[i] = scene.sceneObjects[i].transform.GetMatrix();
-        }*/
-        dubo.model = scene.sceneObjects[0].transform.GetMatrix();
+            dubo.modelMatrices[i] = scene.sceneObjects[i].transform.GetMatrix();
+        }
 
         vkMapMemory(device, dynamicUniformBuffersMemory[currentImage], 0, sizeof(dubo), 0, &data);
         memcpy(data, &dubo, sizeof(dubo));
