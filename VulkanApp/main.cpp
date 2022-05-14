@@ -29,12 +29,11 @@
 
 #include "Scene.h"
 
-const int MAX_MODELS_COUNT = 2;
 struct DynamicUniformBufferObject
 {
-    glm::mat4 modelMatrices[MAX_MODELS_COUNT];
+    void* modelMatrices = nullptr;
 
-    static size_t GetOneBufferSize()
+    static size_t GetSizeWithoutAlignment()
     {
         return sizeof(glm::mat4);
     }
@@ -63,8 +62,7 @@ public:
     const float CAMERA_MOVEMENT_SPEED_FORWARD = 0.1f;
 
     const std::vector<const char*> modelPaths = {
-        "models/monkey.obj",
-        "models/sphere.obj"
+        "models/monkey.obj"
     };
     const std::string TEXTURE_PATH = "textures/default.png";
 
@@ -135,6 +133,9 @@ private:
 
     std::vector<VkBuffer> dynamicUniformBuffers;
     std::vector<VkDeviceMemory> dynamicUniformBuffersMemory;
+
+    size_t duboAlignetSize;
+    DynamicUniformBufferObject dubo;
 
     VkImage textureImage;
     VkDeviceMemory textureImageMemory;
@@ -1319,8 +1320,6 @@ private:
 
     void loadModel()
     {
-        assert(modelPaths.size() < MAX_MODELS_COUNT);
-
         scene.sceneObjects.resize(modelPaths.size());
 
         for (int i = 0; i < modelPaths.size(); i++)
@@ -1570,7 +1569,11 @@ private:
                 materialBuffers[i], materialBuffersMemory[i]);
         }
 
-        bufferSize = sizeof(DynamicUniformBufferObject);
+        duboAlignetSize = getDynamicUniformBufferAlignment();
+        size_t duboSize = duboAlignetSize * scene.sceneObjects.size();
+        dubo.modelMatrices = malloc(duboSize);
+
+        bufferSize = duboSize;
         dynamicUniformBuffers.resize(bufferCount);
         dynamicUniformBuffersMemory.resize(bufferCount);
 
@@ -1649,7 +1652,7 @@ private:
             VkDescriptorBufferInfo dynamicBufferInfo{};
             dynamicBufferInfo.buffer = dynamicUniformBuffers[i];
             dynamicBufferInfo.offset = 0;
-            dynamicBufferInfo.range = sizeof(DynamicUniformBufferObject);
+            dynamicBufferInfo.range = duboAlignetSize * scene.sceneObjects.size();
 
             std::array<VkWriteDescriptorSet, 5> descriptorWrites{};
 
@@ -1753,8 +1756,7 @@ private:
             
             for (uint32_t j = 0; j < scene.sceneObjects.size(); j++)
             {
-                // TODO calculate with alignment
-                uint32_t dynamicOffset = j * static_cast<uint32_t>(DynamicUniformBufferObject::GetOneBufferSize());
+                uint32_t dynamicOffset = j * static_cast<uint32_t>(duboAlignetSize);
                 vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[i], 1, &dynamicOffset);
                 MeshData currentMeshData = scene.sceneObjects[i].meshData;
                 vkCmdDrawIndexed(commandBuffers[i], currentMeshData.indexCount, 1, currentMeshData.firstIndex, 0, 0);
@@ -1848,14 +1850,13 @@ private:
         memcpy(data, &ubo, sizeof(ubo));
         vkUnmapMemory(device, uniformBuffersMemory[currentImage]);
 
-        DynamicUniformBufferObject dubo{};
         for (int i = 0; i < scene.sceneObjects.size(); i++)
         {
-            dubo.modelMatrices[i] = scene.sceneObjects[i].transform.GetMatrix();
+            *((glm::mat4*)((char*)dubo.modelMatrices + i * duboAlignetSize)) = scene.sceneObjects[i].transform.GetMatrix();
         }
 
-        vkMapMemory(device, dynamicUniformBuffersMemory[currentImage], 0, sizeof(dubo), 0, &data);
-        memcpy(data, &dubo, sizeof(dubo));
+        vkMapMemory(device, dynamicUniformBuffersMemory[currentImage], 0, duboAlignetSize * scene.sceneObjects.size(), 0, &data);
+        memcpy(data, dubo.modelMatrices, duboAlignetSize * scene.sceneObjects.size());
         vkUnmapMemory(device, dynamicUniformBuffersMemory[currentImage]);
     }
 
@@ -2010,15 +2011,16 @@ private:
             vkDestroyBuffer(device, uniformBuffers[i], nullptr);
             vkFreeMemory(device, uniformBuffersMemory[i], nullptr);
 
-            vkDestroyBuffer(device, dynamicUniformBuffers[i], nullptr);
-            vkFreeMemory(device, dynamicUniformBuffersMemory[i], nullptr);
-
             vkDestroyBuffer(device, lightBuffers[i], nullptr);
             vkFreeMemory(device, lightBuffersMemory[i], nullptr);
 
             vkDestroyBuffer(device, materialBuffers[i], nullptr);
             vkFreeMemory(device, materialBuffersMemory[i], nullptr);
+
+            vkDestroyBuffer(device, dynamicUniformBuffers[i], nullptr);
+            vkFreeMemory(device, dynamicUniformBuffersMemory[i], nullptr);
         }
+        free(dubo.modelMatrices);
 
         vkDestroyDescriptorPool(device, descriptorPool, nullptr);
     }
@@ -2077,6 +2079,21 @@ private:
 
         glfwDestroyWindow(window);
         glfwTerminate();
+    }
+
+    size_t getDynamicUniformBufferAlignment()
+    {
+        VkPhysicalDeviceProperties physicalDeviceProperties;
+        vkGetPhysicalDeviceProperties(physicalDevice, &physicalDeviceProperties);
+
+        size_t minDuboAlignment = physicalDeviceProperties.limits.minUniformBufferOffsetAlignment;
+        size_t dynamicAlignment = DynamicUniformBufferObject::GetSizeWithoutAlignment();
+        if (minDuboAlignment > 0) 
+        {
+            dynamicAlignment = (dynamicAlignment + minDuboAlignment - 1) & ~(minDuboAlignment - 1);
+        }
+
+        return dynamicAlignment;
     }
 
     static std::vector<char> readFile(const std::string& filename) 
