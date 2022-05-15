@@ -62,7 +62,8 @@ public:
     const float CAMERA_MOVEMENT_SPEED_FORWARD = 0.1f;
 
     const std::vector<const char*> modelPaths = {
-        "models/monkey.obj"
+        "models/monkey.obj",
+        "models/sphere4.obj"
     };
     const std::string TEXTURE_PATH = "textures/default.png";
 
@@ -1335,6 +1336,7 @@ private:
             }
 
             Transform currentTransform = Transform();
+            currentTransform.position += glm::vec3(5.0f * i, 0.0f, 0.0f);
 
             MeshData currentMeshData{};
             currentMeshData.firstIndex = static_cast<uint32_t>(scene.indices.size());
@@ -1652,7 +1654,7 @@ private:
             VkDescriptorBufferInfo dynamicBufferInfo{};
             dynamicBufferInfo.buffer = dynamicUniformBuffers[i];
             dynamicBufferInfo.offset = 0;
-            dynamicBufferInfo.range = duboAlignetSize * scene.sceneObjects.size();
+            dynamicBufferInfo.range = duboAlignetSize;
 
             std::array<VkWriteDescriptorSet, 5> descriptorWrites{};
 
@@ -1758,7 +1760,7 @@ private:
             {
                 uint32_t dynamicOffset = j * static_cast<uint32_t>(duboAlignetSize);
                 vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[i], 1, &dynamicOffset);
-                MeshData currentMeshData = scene.sceneObjects[i].meshData;
+                MeshData currentMeshData = scene.sceneObjects[j].meshData;
                 vkCmdDrawIndexed(commandBuffers[i], currentMeshData.indexCount, 1, currentMeshData.firstIndex, 0, 0);
             }
 
@@ -1832,6 +1834,21 @@ private:
         return std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
     }
 
+    float lastFrameTime = -1.0f;
+    float deltaTime = 0.0f;
+    void updateGlobalVariables()
+    {
+        float time = getTime();
+        if (lastFrameTime <= 0.0f)
+        {
+            lastFrameTime = time;
+            return;
+        }
+
+        deltaTime = time - lastFrameTime;
+        lastFrameTime = time;
+    }
+
     void updateUniformBuffers(uint32_t currentImage)
     {
         UniformBufferObject ubo{};
@@ -1852,6 +1869,7 @@ private:
 
         for (int i = 0; i < scene.sceneObjects.size(); i++)
         {
+            scene.sceneObjects[i].transform.rotation *= glm::quat(glm::vec3(0.0f, 0.0f, deltaTime * i));
             *((glm::mat4*)((char*)dubo.modelMatrices + i * duboAlignetSize)) = scene.sceneObjects[i].transform.GetMatrix();
         }
 
@@ -1864,8 +1882,7 @@ private:
     {
         for (int i = 0; i < scene.lightSources.pointCount; i++)
         {
-            // bound to chrono?
-            scene.lightSources.point[i].position = glm::rotateY(scene.lightSources.point[i].position, 0.001f);
+            scene.lightSources.point[i].position = glm::rotateY(scene.lightSources.point[i].position, deltaTime);
         }
 
         void* data;
@@ -1876,16 +1893,6 @@ private:
 
     void updateMaterial(uint32_t currentImage)
     {
-        //float time = getTime();
-        
-        /*
-        material.F0.x = fmodf(time * 0.1f, 1.0f);
-        material.F0.y = fmodf(time * 0.25f, 1.0f);
-        material.F0.z = fmodf(time * 0.05f, 1.0f);
-        */
-
-        //material.alpha = fmodf(time * 0.1f, 1.0f);
-
         void* data;
         vkMapMemory(device, materialBuffersMemory[currentImage], 0, sizeof(MaterialProperties), 0, &data);
         memcpy(data, &scene.material, sizeof(MaterialProperties));
@@ -1915,6 +1922,7 @@ private:
         }
         imagesInFlight[imageIndex] = inFlightFences[currentFrame];
 
+        updateGlobalVariables();
         updateUniformBuffers(imageIndex);
         updateLightBuffer(imageIndex);
         updateMaterial(imageIndex);
