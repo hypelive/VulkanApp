@@ -22,6 +22,9 @@ class Camera
 
 	const glm::vec3 DEFAULT_UP = glm::vec3(0.0f, 1.0f, 0.0f);
 	const float EPSILON = glm::pi<float>() / 180.0f;
+	const float FOV_Y = glm::radians(40.0f);
+	const float NEAR_CLIP_PLANE = 0.1f;
+	const float FAR_CLIP_PLANE = 1000.0f;
 
 	void updateOrientation();
 
@@ -32,6 +35,7 @@ public:
 	void rotate(glm::vec2 angles);
 
 	glm::mat4 getViewMatrix();
+	glm::mat4 getProjectionMatrix(float appAspect);
 	glm::vec3 getPosition();
 };
 

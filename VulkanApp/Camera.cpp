@@ -46,6 +46,11 @@ glm::mat4 Camera::getViewMatrix()
 	return glm::lookAt(position, position + forward, up);
 }
 
+glm::mat4 Camera::getProjectionMatrix(float appAspect)
+{
+	return glm::perspective(FOV_Y, appAspect, NEAR_CLIP_PLANE, FAR_CLIP_PLANE);
+}
+
 glm::vec3 Camera::getPosition()
 {
 	return position;

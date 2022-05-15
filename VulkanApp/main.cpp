@@ -1854,7 +1854,7 @@ private:
         UniformBufferObject ubo{};
 
         ubo.view = scene.camera.getViewMatrix();
-        ubo.proj = glm::perspective(glm::radians(40.0f), (float)swapChainExtent.width / swapChainExtent.height, 0.1f, 1000.0f);
+        ubo.proj = scene.camera.getProjectionMatrix((float)swapChainExtent.width / swapChainExtent.height);
 
         ubo.proj[1][1] *= -1;
 
