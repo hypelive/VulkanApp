@@ -10,5 +10,5 @@ Transform::Transform(glm::vec3 position, glm::quat rotation, glm::vec3 scale) :
 
 glm::mat4 Transform::GetMatrix()
 {
-	return glm::translate(glm::toMat4(rotation) * glm::scale(glm::identity<glm::mat4>(), scale), position);
+	return glm::scale(glm::translate(glm::identity<glm::mat4>(), position) * glm::toMat4(rotation), scale);
 }

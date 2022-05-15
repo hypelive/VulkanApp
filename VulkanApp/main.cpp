@@ -63,7 +63,7 @@ public:
 
     const std::vector<const char*> modelPaths = {
         "models/monkey.obj",
-        "models/sphere4.obj"
+        "models/sphere.obj"
     };
     const std::string TEXTURE_PATH = "textures/default.png";
 
@@ -1337,6 +1337,7 @@ private:
 
             Transform currentTransform = Transform();
             currentTransform.position += glm::vec3(5.0f * i, 0.0f, 0.0f);
+            currentTransform.scale = glm::vec3(powf(2.0f, -i));
 
             MeshData currentMeshData{};
             currentMeshData.firstIndex = static_cast<uint32_t>(scene.indices.size());
