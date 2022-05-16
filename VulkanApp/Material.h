@@ -10,6 +10,8 @@ struct MaterialProperties
 	glm::vec3 F0;
 	float alpha;
 
+	MaterialProperties() :
+		F0(glm::vec3(0.3f, 0.4f, 0.5f)), alpha(0.1f) { }
 	MaterialProperties(glm::vec3 F0, float alpha) :
 		F0(F0), alpha(alpha) { }
 };

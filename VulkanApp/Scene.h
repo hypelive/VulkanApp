@@ -17,7 +17,6 @@ class Scene
 public:
     Camera camera;
     LightSources lightSources;
-    MaterialProperties material;
 
     std::vector<Vertex> vertices;
     std::vector<uint32_t> indices;

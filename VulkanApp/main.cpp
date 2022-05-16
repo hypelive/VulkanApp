@@ -138,6 +138,9 @@ private:
     size_t duboAlignetSize;
     DynamicUniformBufferObject dubo;
 
+    size_t materialAlignetSize;
+    void* materials;
+
     VkImage textureImage;
     VkDeviceMemory textureImageMemory;
     VkImageView textureImageView;
@@ -776,7 +779,7 @@ private:
 
         VkDescriptorSetLayoutBinding materialLayoutBinding{};
         materialLayoutBinding.binding = 3;
-        materialLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        materialLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
         materialLayoutBinding.descriptorCount = 1;
         materialLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
         materialLayoutBinding.pImmutableSamplers = nullptr;
@@ -1379,7 +1382,10 @@ private:
 
             currentMeshData.indexCount = static_cast<uint32_t>(scene.indices.size() - currentMeshData.firstIndex);
 
-            scene.sceneObjects[i] = SceneObject(static_cast<uint32_t>(i), currentTransform, currentMeshData);
+            MaterialProperties material = MaterialProperties();
+            material.alpha *= 2.0f * (i + 1);
+
+            scene.sceneObjects[i] = SceneObject(static_cast<uint32_t>(i), currentTransform, currentMeshData, material);
         }
     }
 
@@ -1560,7 +1566,11 @@ private:
                 lightBuffers[i], lightBuffersMemory[i]);
         }
 
-        bufferSize = sizeof(MaterialProperties);
+        materialAlignetSize = getDynamicUniformBufferAligned(sizeof(MaterialProperties));
+        size_t materialsSize = materialAlignetSize * scene.sceneObjects.size();
+        materials = malloc(materialsSize);
+
+        bufferSize = materialsSize;
         materialBuffers.resize(bufferCount);
         materialBuffersMemory.resize(bufferCount);
 
@@ -1572,7 +1582,7 @@ private:
                 materialBuffers[i], materialBuffersMemory[i]);
         }
 
-        duboAlignetSize = getDynamicUniformBufferAlignment();
+        duboAlignetSize = getDynamicUniformBufferAligned(DynamicUniformBufferObject::GetSizeWithoutAlignment());
         size_t duboSize = duboAlignetSize * scene.sceneObjects.size();
         dubo.modelMatrices = malloc(duboSize);
 
@@ -1598,7 +1608,7 @@ private:
         poolSizes[1].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
         poolSizes[2].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         poolSizes[2].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
-        poolSizes[3].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        poolSizes[3].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
         poolSizes[3].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
         poolSizes[4].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
         poolSizes[4].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
@@ -1687,7 +1697,7 @@ private:
             descriptorWrites[3].dstSet = descriptorSets[i];
             descriptorWrites[3].dstBinding = 3;
             descriptorWrites[3].dstArrayElement = 0;
-            descriptorWrites[3].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            descriptorWrites[3].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
             descriptorWrites[3].descriptorCount = 1;
             descriptorWrites[3].pBufferInfo = &materialBufferInfo;
 
@@ -1759,8 +1769,9 @@ private:
             
             for (uint32_t j = 0; j < scene.sceneObjects.size(); j++)
             {
-                uint32_t dynamicOffset = j * static_cast<uint32_t>(duboAlignetSize);
-                vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[i], 1, &dynamicOffset);
+                uint32_t dynamicOffsets[] { j * static_cast<uint32_t>(materialAlignetSize), j * static_cast<uint32_t>(duboAlignetSize) };
+
+                vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[i], 2, dynamicOffsets);
                 MeshData currentMeshData = scene.sceneObjects[j].meshData;
                 vkCmdDrawIndexed(commandBuffers[i], currentMeshData.indexCount, 1, currentMeshData.firstIndex, 0, 0);
             }
@@ -1892,11 +1903,16 @@ private:
         vkUnmapMemory(device, lightBuffersMemory[currentImage]);
     }
 
-    void updateMaterial(uint32_t currentImage)
+    void updateMaterials(uint32_t currentImage)
     {
+        for (int i = 0; i < scene.sceneObjects.size(); i++)
+        {
+            *((MaterialProperties*)((char*)materials + i * materialAlignetSize)) = scene.sceneObjects[i].material;
+        }
+
         void* data;
-        vkMapMemory(device, materialBuffersMemory[currentImage], 0, sizeof(MaterialProperties), 0, &data);
-        memcpy(data, &scene.material, sizeof(MaterialProperties));
+        vkMapMemory(device, materialBuffersMemory[currentImage], 0, materialAlignetSize * scene.sceneObjects.size(), 0, &data);
+        memcpy(data, materials, materialAlignetSize * scene.sceneObjects.size());
         vkUnmapMemory(device, materialBuffersMemory[currentImage]);
     }
 
@@ -1926,7 +1942,7 @@ private:
         updateGlobalVariables();
         updateUniformBuffers(imageIndex);
         updateLightBuffer(imageIndex);
-        updateMaterial(imageIndex);
+        updateMaterials(imageIndex);
 
         VkSubmitInfo submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -2030,6 +2046,7 @@ private:
             vkFreeMemory(device, dynamicUniformBuffersMemory[i], nullptr);
         }
         free(dubo.modelMatrices);
+        free(materials);
 
         vkDestroyDescriptorPool(device, descriptorPool, nullptr);
     }
@@ -2090,13 +2107,13 @@ private:
         glfwTerminate();
     }
 
-    size_t getDynamicUniformBufferAlignment()
+    size_t getDynamicUniformBufferAligned(size_t originalSize)
     {
         VkPhysicalDeviceProperties physicalDeviceProperties;
         vkGetPhysicalDeviceProperties(physicalDevice, &physicalDeviceProperties);
 
         size_t minDuboAlignment = physicalDeviceProperties.limits.minUniformBufferOffsetAlignment;
-        size_t dynamicAlignment = DynamicUniformBufferObject::GetSizeWithoutAlignment();
+        size_t dynamicAlignment = originalSize;
         if (minDuboAlignment > 0) 
         {
             dynamicAlignment = (dynamicAlignment + minDuboAlignment - 1) & ~(minDuboAlignment - 1);
