@@ -1322,7 +1322,7 @@ private:
         }
     }
 
-    void loadModel()
+    void loadModels()
     {
         scene.sceneObjects.resize(modelPaths.size());
 
@@ -1827,7 +1827,7 @@ private:
         createTextureImage();
         createTextureImageView();
         createTextureSampler();
-        loadModel();
+        loadModels();
         createVertexBuffer();
         createIndexBuffer();
         createUniformBuffers();
