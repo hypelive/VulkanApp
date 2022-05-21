@@ -65,10 +65,10 @@ struct LightSources
         //directional[1].color = glm::vec3(0.7f, 0.0f, 0.7f);
         //directional[1].direction = glm::vec3(0.6667f, 0.3333f, 0.6667f);
 
-        point[0].color = glm::vec3(70.0f, 0.0f, 70.0f);
+        point[0].color = glm::vec3(1.0f, 0.0f, 1.0f);
         point[0].position = glm::vec3(0.0f, 0.0f, -4.0f);
 
-        point[1].color = glm::vec3(70.0f, 0.0f, 0.0f);
+        point[1].color = glm::vec3(1.0f, 0.0f, 0.0f);
         point[1].position = glm::vec3(0.0f, 0.0f, 4.0f);
     }
 

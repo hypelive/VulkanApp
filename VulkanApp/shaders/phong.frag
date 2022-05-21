@@ -2,6 +2,10 @@
 
 #define PI 3.1415926538
 
+// point light falloff
+#define LINEAR_FALOFF
+//#define SQR_FALOFF
+
 layout(binding = 1) uniform sampler2D texSampler;
 
 struct AmbientLight
@@ -69,7 +73,11 @@ void main()
     for (int i = 0; i < lights.pointCount; i++)
     {
         vec3 pointOffset = lights.point[i].position.xyz - fragPosition;
-        float pointIntensity = 1 / (4 * PI * dot(pointOffset, pointOffset));
+#if defined(LINEAR_FALOFF)
+        float pointIntensity = 1 / sqrt(dot(pointOffset, pointOffset));
+#elif defined(SQR_FALOFF)
+        float pointIntensity = 1 / dot(pointOffset, pointOffset);
+#endif
 
         vec3 l = normalize(pointOffset);
         vec3 r = reflect(-l, n);
