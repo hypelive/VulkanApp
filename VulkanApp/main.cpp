@@ -1881,7 +1881,7 @@ private:
 
         for (int i = 0; i < scene.sceneObjects.size(); i++)
         {
-            scene.sceneObjects[i].transform.rotation *= glm::quat(glm::vec3(0.0f, 0.0f, deltaTime * i));
+            //scene.sceneObjects[i].transform.rotation *= glm::quat(glm::vec3(0.0f, 0.0f, deltaTime * i));
             *((glm::mat4*)((char*)dubo.modelMatrices + i * duboAlignetSize)) = scene.sceneObjects[i].transform.GetMatrix();
         }
 

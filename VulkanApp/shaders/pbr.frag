@@ -152,10 +152,11 @@ void main()
     for (int i = 0; i < lights.pointCount; i++)
     {
         vec3 pointOffset = lights.point[i].position.xyz - fragPosition;
+        float sqrLen = max(dot(pointOffset, pointOffset), 1.0);
 #if defined(LINEAR_FALOFF)
-        float pointIntensity = 1 / sqrt(dot(pointOffset, pointOffset));
+        float pointIntensity = 1 / sqrt(sqrLen);
 #elif defined(SQR_FALOFF)
-        float pointIntensity = 1 / dot(pointOffset, pointOffset);
+        float pointIntensity = 1 / sqrLen;
 #endif
 
         vec3 l = normalize(pointOffset);

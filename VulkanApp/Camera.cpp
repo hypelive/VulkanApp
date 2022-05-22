@@ -2,7 +2,7 @@
 #include <algorithm>
 
 Camera::Camera(const glm::vec3&& position) :
-	position(position), pitch(0.0f), yaw(glm::half_pi<float>())
+	position(position), pitch(0.0f), yaw(-glm::half_pi<float>())
 {
 	updateOrientation();
 }
